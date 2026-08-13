@@ -210,8 +210,6 @@
             </div>
         </div>
 
-        
-
         <!-- PENGATURAN COOKIE, DELAY, & LAPORAN -->
         <div class="card">
             <h3>⚙️ Konfigurasi Automation & Cookie</h3>
@@ -255,8 +253,9 @@
             <div id="terminal_log" class="terminal-box">Menunggu sistem...</div>
         </div>
     </div>
+
     <script>
- const baseUrl = window.location.origin;
+        const baseUrl = window.location.origin;
         let currentUser = null;
         let userRole = null;
 
@@ -558,3 +557,6 @@
         logSocket.onclose = function() {
             console.log("WebSocket log terputus.");
         };
+    </script>
+</body>
+</html>
