@@ -1,10 +1,8 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from telethon import TelegramClient, events
-from fastapi.responses
-import HTMLResponse
 import asyncio
 import json
 import os
