@@ -257,31 +257,29 @@
     </div>
 
     <script>
-        const baseUrl = window.location.origin;
-        let currentUser = null;
-        let userRole = null;
+    const baseUrl = window.location.origin;
 
-        // --- CEK SESI LOGIN SAAT HALAMAN DIREFRESH ---
-        window.onload = function() {
-            const savedUser = localStorage.getItem('rpa_current_user');
-            const savedRole = localStorage.getItem('rpa_user_role');
-            const savedSaldo = localStorage.getItem('rpa_user_saldo');
+    // Pastikan fungsi ini berada di luar (Global Scope)
+    async function prosesLogin() {
+        const u = document.getElementById('login_user').value.trim();
+        const p = document.getElementById('login_pass').value.trim();
+        if(!u || !p) { alert("Isi username dan password!"); return; }
 
-            if(savedUser && savedRole) {
-                currentUser = savedUser;
-                userRole = savedRole;
-                document.getElementById('auth_section').style.display = 'none';
-                document.getElementById('dashboard_section').style.display = 'block';
-                document.getElementById('user_info_label').innerText = `👤 ${currentUser} (${userRole.toUpperCase()}) | Saldo: Rp ${parseFloat(savedSaldo || 0).toLocaleString()}`;
-                
-                if(userRole === 'owner') {
-                    document.getElementById('owner_panel').style.display = 'block';
-                    loadAdminUsers();
-                }
-                loadConfig();
+        try {
+            const res = await fetch(`${baseUrl}/api/login`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: u, password: p})
+            });
+            const data = await res.json();
+            if(data.status === 'success') {
+                alert("Berhasil login!");
+                // Seterusnya...
+            } else {
+                alert("❌ " + data.message);
             }
-        };
-
+        } catch(e) { alert("Gagal terhubung ke server."); }
+    }
         function switchAuth(target) {
             if(target === 'register') {
                 document.getElementById('form_login').style.display = 'none';
@@ -594,3 +592,4 @@
 
         // Jalankan sistem log saat halaman dibuka
         initLiveLogs();
+</script>
