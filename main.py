@@ -21,6 +21,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def baca_konfigurasi():
+    # Helper untuk kompatibilitas fungsi lama yang membaca konfigurasi
+    try:
+        with SessionLocal() as db:
+            # Mengambil data setting baris pertama atau sesuaikan kebutuhan
+            res = db.execute(text("SELECT * FROM settings LIMIT 1")).fetchone()
+            if not res:
+                return {}
+            return {
+                "api_id": getattr(res, "api_id", 0),
+                "api_hash": getattr(res, "api_hash", ""),
+                "nomor_hp": getattr(res, "nomor_hp", ""),
+                "bot_target": getattr(res, "bot_target", ""),
+                "delay_aksi": getattr(res, "delay_aksi", 1.5),
+                "delay_repeat": getattr(res, "delay_repeat", 3.0),
+                "list_cookie": getattr(res, "list_cookie", "")
+            }
+    except Exception as e:
+        print(f"Error baca_konfigurasi: {e}")
+        return {}
+
 # Konfigurasi Database Supabase dari Environment Variables Railway
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
