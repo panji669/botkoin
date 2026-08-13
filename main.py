@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
+from fastapi import WebSocket, WebSocketDisconnect
 import asyncio
 import os
 import sys
@@ -631,3 +632,23 @@ async def verifikasi_otp_user(data: VerifyOTP):
         return {"status": "success", "message": f"Verifikasi OTP [{data.username}] Berhasil & Sesi Tersimpan Permanen di Supabase!"}
     except Exception as e:
         return {"status": "error", "message": f"Verifikasi gagal: {str(e)}"}
+
+        # Simpan daftar koneksi WebSocket yang aktif
+active_websockets = []
+
+@app.websocket("/ws/logs")
+async def websocket_logs(websocket: WebSocket):
+    await websocket.accept()
+    active_websockets.append(websocket)
+    try:
+        while True:
+            # Ambil log terbaru dari buffer
+            current_logs = log_stream.get_logs()
+            await websocket.send_text(current_logs)
+            # Kirim pembaruan setiap 0.5 detik (jauh lebih ringan dibanding HTTP polling konstan)
+            await asyncio.sleep(0.5)
+    except WebSocketDisconnect:
+        active_websockets.remove(websocket)
+    except Exception:
+        if websocket in active_websockets:
+            active_websockets.remove(websocket)
