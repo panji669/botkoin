@@ -27,25 +27,19 @@
             justify-content: center;
         }
 
-        .container {
-            width: 100%;
-            max-width: 850px;
-        }
+        .container { width: 100%; max-width: 900px; }
+        .auth-container { max-width: 400px; margin: 80px auto; }
 
         header {
             margin-bottom: 25px;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        header h1 {
-            font-size: 1.5rem;
-            margin: 0;
-            color: var(--text-main);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        header h1 { font-size: 1.4rem; margin: 0; color: var(--text-main); }
 
         .card {
             background-color: var(--bg-card);
@@ -64,21 +58,11 @@
             color: #38bdf8;
         }
 
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 
-        label {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-bottom: 6px;
-            font-weight: 500;
-        }
+        label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
 
-        input, textarea {
+        input, textarea, select {
             background-color: #0b0f19;
             border: 1px solid var(--border-color);
             color: var(--text-main);
@@ -87,17 +71,11 @@
             width: 100%;
             box-sizing: border-box;
             font-size: 0.95rem;
+            margin-bottom: 12px;
         }
 
-        input:focus, textarea:focus {
-            outline: none;
-            border-color: #38bdf8;
-        }
-
-        textarea {
-            resize: vertical;
-            font-family: monospace;
-        }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: #38bdf8; }
+        textarea { resize: vertical; font-family: monospace; }
 
         button {
             padding: 10px 18px;
@@ -108,7 +86,6 @@
             font-size: 0.9rem;
             transition: background-color 0.2s, transform 0.1s;
         }
-
         button:active { transform: scale(0.98); }
 
         .btn-green { background-color: var(--accent-green); color: white; }
@@ -123,162 +100,290 @@
         .btn-excel:hover { background-color: #15803d; }
 
         .status-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: bold;
-            background-color: rgba(239, 68, 68, 0.2);
-            color: #f87171;
+            display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold;
+            background-color: rgba(239, 68, 68, 0.2); color: #f87171;
         }
+        .status-badge.connected { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
 
-        .status-badge.connected {
-            background-color: rgba(16, 185, 129, 0.2);
-            color: #34d399;
-        }
-
-        .flex-row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
+        .flex-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
         .terminal-box {
-            background-color: #030712;
-            border: 1px solid #1e293b;
-            border-radius: 8px;
-            padding: 16px;
-            height: 260px;
-            overflow-y: auto;
-            font-family: 'Consolas', 'Courier New', Courier, monospace;
-            font-size: 0.85rem;
-            color: #f8fafc;
-            white-space: pre-wrap;
-            word-break: break-all;
-            line-height: 1.6;
+            background-color: #030712; border: 1px solid #1e293b; border-radius: 8px; padding: 16px;
+            height: 220px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 0.85rem; color: #f8fafc;
+            white-space: pre-wrap; word-break: break-all; line-height: 1.5;
         }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+        th, td { border: 1px solid var(--border-color); padding: 8px 10px; text-align: left; }
+        th { background-color: #0f172a; color: #38bdf8; }
     </style>
 </head>
 <body>
 
-    <div class="container">
+    <!-- HALAMAN AUTH -->
+    <div id="auth_section" class="container auth-container card">
+        <h2 style="text-align: center; color: #38bdf8; margin-top: 0;">🔐 RPA Bot Portal</h2>
+        
+        <div id="form_login">
+            <label>Username</label>
+            <input type="text" id="login_user">
+            <label>Password</label>
+            <input type="password" id="login_pass">
+            <button class="btn-green" style="width: 100%; margin-top: 10px;" onclick="prosesLogin()">Masuk (Login)</button>
+            <p style="text-align: center; margin-top: 15px; font-size: 0.9rem; color: var(--text-muted);">
+                Belum punya akun? <a href="#" onclick="switchAuth('register')" style="color: #38bdf8;">Daftar di sini</a>
+            </p>
+        </div>
+
+        <div id="form_register" style="display: none;">
+            <label>Username Baru</label>
+            <input type="text" id="reg_user">
+            <label>Password Baru</label>
+            <input type="password" id="reg_pass">
+            <button class="btn-info" style="width: 100%; margin-top: 10px;" onclick="prosesRegister()">Daftar Akun</button>
+            <p style="text-align: center; margin-top: 15px; font-size: 0.85rem; color: #facc15;">
+                ⚠️ <b>Catatan:</b> Hubungi Admin untuk aktivasi langganan setelah mendaftar.
+            </p>
+            <p style="text-align: center; margin-top: 10px; font-size: 0.9rem; color: var(--text-muted);">
+                Sudah punya akun? <a href="#" onclick="switchAuth('login')" style="color: #38bdf8;">Login di sini</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- DASHBOARD UTAMA -->
+    <div id="dashboard_section" class="container" style="display: none;">
         <header>
             <h1>⚡ Enterprise RPA Bot Command Center</h1>
+            <div class="flex-row">
+                <span id="user_info_label" style="font-weight: 500; color: #38bdf8;"></span>
+                <button class="btn-danger" style="padding: 6px 12px; font-size: 0.8rem;" onclick="logout()">Keluar</button>
+            </div>
         </header>
 
-        <!-- STATUS BAR -->
+        <!-- PANEL OWNER -->
+        <div id="owner_panel" class="card" style="display: none; border: 2px solid #38bdf8;">
+            <h3 style="color: #facc15;">👑 Panel Manajemen Admin / Owner</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Kelola langganan, tambah saldo, atau hapus user.</p>
+            <div style="overflow-x: auto;">
+                <table id="users_table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Saldo (Rp)</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users_table_body"></tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
-            <span>Status Koneksi Telegram:</span>
+            <span>Status Koneksi Telegram Anda:</span>
             <span id="status_koneksi" class="status-badge">TERPUTUS</span>
         </div>
 
-        <!-- KONEKSI TELEGRAM -->
         <div class="card">
-            <h3>🔌 Konfigurasi Kredensial Telegram</h3>
+            <h3>🔌 Konfigurasi Kredensial Telegram Sesi Anda</h3>
             <div class="grid-2">
-                <div>
-                    <label>API ID</label>
-                    <input type="number" id="api_id" value="">
-                </div>
-                <div>
-                    <label>API Hash</label>
-                    <input type="text" id="api_hash" value="">
-                </div>
+                <div><label>API ID</label><input type="number" id="api_id" value=""></div>
+                <div><label>API Hash</label><input type="text" id="api_hash" value=""></div>
             </div>
             <div style="margin-top: 12px;" class="grid-2">
-                <div>
-                    <label>Nomor HP (+62)</label>
-                    <input type="text" id="nomor_hp" value="+">
-                </div>
-                <div>
-                    <label>Bot Target</label>
-                    <input type="text" id="bot_target" value="shp_tools_bot">
-                </div>
+                <div><label>Nomor HP Anda (+62)</label><input type="text" id="nomor_hp" placeholder="+628xxxxxxxxxx"></div>
+                <div><label>Bot Target</label><input type="text" id="bot_target" value="shp_tools_bot"></div>
             </div>
             <div style="margin-top: 15px;" class="flex-row">
-                <button class="btn-green" onclick="hubungkanTelegram()">🔗 1. Kirim OTP / Hubungkan</button>
+                <button class="btn-green" onclick="hubungkanTelegramUser()">🔗 1. Hubungkan Sesi Telegram Anda</button>
             </div>
-
-            <!-- KOTAK INPUT OTP TERPISAH (AGAR TIDAK GAGAL) -->
             <div id="otp_container" style="display: none; margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 12px;">
-                <label style="color: #38bdf8; font-weight: bold;">📲 Masukkan Kode OTP dari Telegram:</label>
+                <label style="color: #38bdf8; font-weight: bold;">📲 Masukkan Kode OTP Telegram Anda:</label>
                 <div class="flex-row">
-                    <input type="text" id="kode_otp_input" placeholder="Contoh: 12345" style="max-width: 200px;">
-                    <button class="btn-info" onclick="kirimOTPManual()">✅ 2. Verifikasi OTP</button>
+                    <input type="text" id="kode_otp_input" placeholder="Contoh: 12345" style="max-width: 200px; margin-bottom: 0;">
+                    <button class="btn-info" onclick="kirimOTPMasingMasing()">✅ 2. Verifikasi OTP</button>
                 </div>
             </div>
         </div>
 
-        <!-- PENGATURAN DELAY -->
         <div class="card">
-            <h3>⚙️ Konfigurasi Timing & Delay Eksekusi</h3>
-            <div class="grid-2">
-                <div>
-                    <label>Delay Antar Aksi / Klik (Detik)</label>
-                    <input type="number" step="0.1" id="delay_aksi" value="1.5">
-                </div>
-                <div>
-                    <label>Delay Sebelum Repeat /mission (Detik)</label>
-                    <input type="number" step="0.1" id="delay_repeat" value="3.0">
-                </div>
-            </div>
-        </div>
-
-        <!-- PENGATURAN COOKIE & LAPORAN EXCEL -->
-        <div class="card">
-            <h3>🍪 Manajemen Antrean Raw Cookie & Laporan</h3>
+            <h3>⚙️ Manajemen Antrean Cookie & Laporan</h3>
             <label>Masukkan daftar cookie (1 baris = 1 akun):</label>
-            <textarea id="list_cookie" rows="6" placeholder="Paste cookie di sini..."></textarea>
-            
-            <div style="margin-top: 12px;" class="flex-row">
-                <button class="btn-dark" onclick="simpanPengaturan()">💾 Simpan Konfigurasi</button>
-                <input type="file" id="file_cookie_input" style="display: none;" accept=".txt" onchange="importCookieFile(event)">
-                <button class="btn-info" onclick="document.getElementById('file_cookie_input').click()">📁 Impor .txt</button>
-                <button class="btn-info" onclick="exportCookieFile()">📥 Backup .txt</button>
+            <textarea id="list_cookie" rows="5" placeholder="Paste cookie di sini..."></textarea>
+            <div class="flex-row" style="margin-top: 10px;">
+                <button class="btn-dark" onclick="simpanPengaturan()">💾 Simpan Antrean Cookie</button>
                 <button class="btn-excel" onclick="downloadExcelReport()">📊 Download Laporan Excel</button>
             </div>
         </div>
 
-        <!-- KONTROL AUTO CLAIM -->
         <div class="card">
             <h3>🚀 Eksekusi Otomatis (Automation Runner)</h3>
             <div class="flex-row">
-                <button class="btn-green" onclick="mulaiClaim()">▶️ Start Automation</button>
-                <button class="btn-danger" onclick="stopClaim()">⏹️ Stop Automation</button>
+                <button class="btn-green" onclick="mulaiClaimUser()">▶️ Start Automation</button>
+                <button class="btn-danger" onclick="stopClaimUser()">⏹️ Stop Automation</button>
             </div>
             <p id="status_claim" style="margin-top: 12px; font-weight: 500; color: #38bdf8;">Status Runner: Standby</p>
         </div>
 
-        <!-- LIVE LOG TERMINAL -->
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
                 <h3 style="margin: 0; border: none; padding: 0;">💻 Live Engine Logs</h3>
-                <button class="btn-dark" style="padding: 4px 10px; font-size: 0.75rem;" onclick="bersihkanLog()">🗑️ Clear Log</button>
+                <button class="btn-dark" style="padding: 4px 10px; font-size: 0.75rem;" onclick="bersihkanLog()">🗑️ Clear</button>
             </div>
-            <div id="terminal_log" class="terminal-box">Menunggu sistem berjalan...</div>
+            <div id="terminal_log" class="terminal-box">Menunggu sistem...</div>
         </div>
     </div>
 
-    <!-- SCRIPT INTERAKSI -->
     <script>
         const baseUrl = "http://127.0.0.1:8000";
+        let currentUser = null;
+        let userRole = null;
 
-        window.onload = async () => {
+        function switchAuth(target) {
+            if(target === 'register') {
+                document.getElementById('form_login').style.display = 'none';
+                document.getElementById('form_register').style.display = 'block';
+            } else {
+                document.getElementById('form_register').style.display = 'none';
+                document.getElementById('form_login').style.display = 'block';
+            }
+        }
+
+        async function prosesLogin() {
+            const u = document.getElementById('login_user').value.trim();
+            const p = document.getElementById('login_pass').value.trim();
+            if(!u || !p) { alert("Isi username dan password!"); return; }
+
+            try {
+                const res = await fetch(`${baseUrl}/api/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: u, password: p})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    currentUser = data.username;
+                    userRole = data.role;
+                    document.getElementById('auth_section').style.display = 'none';
+                    document.getElementById('dashboard_section').style.display = 'block';
+                    document.getElementById('user_info_label').innerText = `👤 ${currentUser} (${userRole.toUpperCase()}) | Saldo: Rp ${data.saldo.toLocaleString()}`;
+                    
+                    if(userRole === 'owner') {
+                        document.getElementById('owner_panel').style.display = 'block';
+                        loadAdminUsers();
+                    }
+                    loadConfig();
+                } else {
+                    alert("❌ " + data.message);
+                }
+            } catch(e) { alert("Gagal terhubung ke server."); }
+        }
+
+        async function prosesRegister() {
+            const u = document.getElementById('reg_user').value.trim();
+            const p = document.getElementById('reg_pass').value.trim();
+            if(!u || !p) { alert("Isi username dan password baru!"); return; }
+
+            try {
+                const res = await fetch(`${baseUrl}/api/register`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: u, password: p})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    alert("✅ " + data.message);
+                    switchAuth('login');
+                } else {
+                    alert("❌ " + data.message);
+                }
+            } catch(e) { alert("Gagal mendaftar."); }
+        }
+
+        function logout() {
+            currentUser = null; userRole = null;
+            document.getElementById('dashboard_section').style.display = 'none';
+            document.getElementById('auth_section').style.display = 'block';
+        }
+
+        async function loadAdminUsers() {
+            if(userRole !== 'owner') return;
+            try {
+                const res = await fetch(`${baseUrl}/api/admin/users?username=${currentUser}`);
+                const data = await res.json();
+                const tbody = document.getElementById('users_table_body');
+                tbody.innerHTML = '';
+                
+                for(let [uname, info] of Object.entries(data.users)) {
+                    let deleteBtn = uname !== 'owner' ? `<button class="btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="deleteUser('${uname}')">Hapus</button>` : '';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><b>${uname}</b></td>
+                            <td>${info.role}</td>
+                            <td><span style="color: ${info.status==='aktif'?'#34d399':'#f87171'}">${info.status.toUpperCase()}</span></td>
+                            <td>Rp ${info.saldo.toLocaleString()}</td>
+                            <td>
+                                <select id="status_${uname}" style="width: 90px; display:inline-block; margin-bottom:0; padding:3px;">
+                                    <option value="aktif" ${info.status==='aktif'?'selected':''}>Aktif</option>
+                                    <option value="pending" ${info.status==='pending'?'selected':''}>Pending</option>
+                                    <option value="nonaktif" ${info.status==='nonaktif'?'selected':''}>Nonaktif</option>
+                                </select>
+                                <input type="number" id="add_saldo_${uname}" placeholder="+ Saldo" style="width: 90px; display:inline-block; margin-bottom:0; padding:3px;" value="0">
+                                <button class="btn-green" style="padding: 4px 8px; font-size: 0.75rem;" onclick="updateUser('${uname}')">Simpan</button>
+                                ${deleteBtn}
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch(e) { console.log("Gagal memuat data user admin"); }
+        }
+
+        async function updateUser(targetUname) {
+            const status = document.getElementById(`status_${targetUname}`).value;
+            const tambahSaldo = parseFloat(document.getElementById(`add_saldo_${targetUname}`).value) || 0;
+
+            try {
+                const res = await fetch(`${baseUrl}/api/admin/manage?admin_user=${currentUser}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target_username: targetUname, status: status, tambah_saldo: tambahSaldo})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    alert("✅ " + data.message);
+                    loadAdminUsers();
+                } else { alert("❌ " + data.message); }
+            } catch(e) { alert("Gagal mengupdate user."); }
+        }
+
+        async function deleteUser(targetUname) {
+            if(!confirm(`Apakah Anda yakin ingin menghapus user '${targetUname}' secara permanen?`)) return;
+
+            try {
+                const res = await fetch(`${baseUrl}/api/admin/delete?admin_user=${currentUser}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target_username: targetUname})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    alert("✅ " + data.message);
+                    loadAdminUsers();
+                } else { alert("❌ " + data.message); }
+            } catch(e) { alert("Gagal menghapus user."); }
+        }
+
+        async function loadConfig() {
             try {
                 const res = await fetch(`${baseUrl}/api/get_config`);
                 const config = await res.json();
-                if(config) {
-                    if(config.api_id) document.getElementById('api_id').value = config.api_id;
-                    if(config.api_hash) document.getElementById('api_hash').value = config.api_hash;
-                    if(config.nomor_hp) document.getElementById('nomor_hp').value = config.nomor_hp;
-                    if(config.bot_target) document.getElementById('bot_target').value = config.bot_target;
-                    if(config.delay_aksi) document.getElementById('delay_aksi').value = config.delay_aksi;
-                    if(config.delay_repeat) document.getElementById('delay_repeat').value = config.delay_repeat;
-                    if(config.list_cookie) document.getElementById('list_cookie').value = config.list_cookie;
-                }
-            } catch(e) { console.log("Gagal memuat konfigurasi awal"); }
-        };
+                if(config.api_id) document.getElementById('api_id').value = config.api_id;
+                if(config.api_hash) document.getElementById('api_hash').value = config.api_hash;
+                if(config.bot_target) document.getElementById('bot_target').value = config.bot_target;
+                if(config.list_cookie) document.getElementById('list_cookie').value = config.list_cookie;
+            } catch(e) {}
+        }
 
         async function simpanPengaturan() {
             const data = {
@@ -286,129 +391,89 @@
                 api_hash: document.getElementById('api_hash').value,
                 nomor_hp: document.getElementById('nomor_hp').value,
                 bot_target: document.getElementById('bot_target').value,
-                delay_aksi: parseFloat(document.getElementById('delay_aksi').value),
-                delay_repeat: parseFloat(document.getElementById('delay_repeat').value),
-                list_cookie: document.getElementById('list_cookie').value,
-                otp_timeout: 50, otp_interval: 3, hunt_max: 10, hunt_delay: 1.0, jeda_setelah_order: 3.0, jeda_antar_aksi: 0.5
+                delay_aksi: 1.5, delay_repeat: 3.0,
+                list_cookie: document.getElementById('list_cookie').value
+            };
+            await fetch(`${baseUrl}/api/simpan_pengaturan`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+            });
+            alert("✅ Antrean Cookie disimpan!");
+        }
+
+        async function hubungkanTelegramUser() {
+            await simpanPengaturan();
+            const payload = {
+                username: currentUser,
+                api_id: parseInt(document.getElementById('api_id').value),
+                api_hash: document.getElementById('api_hash').value,
+                nomor_hp: document.getElementById('nomor_hp').value.trim(),
+                bot_target: document.getElementById('bot_target').value.trim()
             };
 
-            try {
-                const response = await fetch(`${baseUrl}/api/simpan_pengaturan`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                const result = await response.json();
-                alert("✅ " + result.message);
-            } catch (error) {
-                alert("❌ Gagal menyimpan pengaturan.");
-            }
-        }
-
-        async function hubungkanTelegram() {
-            // Otomatis simpan pengaturan dulu sebelum menghubungkan
-            await simpanPengaturan();
-            
             document.getElementById('status_koneksi').innerText = "MENGHUBUNGKAN...";
-            try {
-                const response = await fetch(`${baseUrl}/api/hubungkan`, { method: 'POST' });
-                const result = await response.json();
-                
-                if (result.status === 'otp_required') {
-                    document.getElementById('otp_container').style.display = 'block';
-                    alert("📲 " + result.message + "\n\nSilakan masukkan kode OTP pada kolom di bawah tombol hubungkan.");
-                } else if (result.status === 'connected') {
-                    setTerhubung();
-                    alert("✅ " + result.message);
-                } else {
-                    alert("❌ " + result.message);
-                    document.getElementById('status_koneksi').innerText = "GAGAL";
-                }
-            } catch (error) {
+            const res = await fetch(`${baseUrl}/api/hubungkan_user`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            
+            if(result.status === 'otp_required') {
+                document.getElementById('otp_container').style.display = 'block';
+                alert("📲 " + result.message);
+            } else if(result.status === 'connected') {
+                setTerhubung();
+                alert("✅ " + result.message);
+            } else {
+                alert("❌ " + result.message);
                 document.getElementById('status_koneksi').innerText = "GAGAL";
-                alert("❌ Terjadi kesalahan jaringan saat menghubungkan.");
             }
         }
 
-        async function kirimOTPManual() {
+        async function kirimOTPMasingMasing() {
             const kodeOtp = document.getElementById('kode_otp_input').value.trim();
-            if(!kodeOtp) {
-                alert("Harap masukkan kode OTP terlebih dahulu!");
-                return;
-            }
-
-            const response = await fetch(`${baseUrl}/api/verifikasi_otp`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ kode_otp: kodeOtp })
+            const res = await fetch(`${baseUrl}/api/verifikasi_otp_user`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: currentUser, kode_otp: kodeOtp})
             });
-            const result = await response.json();
+            const result = await res.json();
             if(result.status === 'success') {
                 setTerhubung();
                 document.getElementById('otp_container').style.display = 'none';
                 alert("✅ " + result.message);
-            } else {
-                alert("❌ " + result.message);
-            }
+            } else { alert("❌ " + result.message); }
         }
 
-        function importCookieFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                document.getElementById('list_cookie').value = e.target.result;
-                simpanPengaturan();
-                alert("📁 Berhasil memuat antrean cookie dari file!");
-            };
-            reader.readAsText(file);
-        }
+        function downloadExcelReport() { window.location.href = `${baseUrl}/api/download_excel`; }
 
-        function exportCookieFile() {
-            const content = document.getElementById('list_cookie').value;
-            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'backup_cookie_list.txt';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        function downloadExcelReport() {
-            window.location.href = `${baseUrl}/api/download_excel`;
-        }
-
-        async function mulaiClaim() {
+        async function mulaiClaimUser() {
             document.getElementById('status_claim').innerText = "Status Runner: 🚀 BERJALAN AKTIF";
-            const res = await fetch(`${baseUrl}/api/start_claim`, { method: 'POST' });
+            const res = await fetch(`${baseUrl}/api/start_claim_user`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: currentUser})
+            });
             const data = await res.json();
-            if(data.status === 'error') alert(data.message);
+            if(data.status === 'error') alert("❌ " + data.message);
         }
 
-        async function stopClaim() {
+        async function stopClaimUser() {
             document.getElementById('status_claim').innerText = "Status Runner: ⏹️ DIHENTIKAN";
-            await fetch(`${baseUrl}/api/stop_claim`, { method: 'POST' });
+            await fetch(`${baseUrl}/api/stop_claim_user`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: currentUser})
+            });
         }
 
         function setTerhubung() {
             const el = document.getElementById('status_koneksi');
-            el.innerText = "TERHUBUNG";
-            el.className = "status-badge connected";
+            el.innerText = "TERHUBUNG"; el.className = "status-badge connected";
         }
-
-        function bersihkanLog() {
-            document.getElementById('terminal_log').innerText = "";
-        }
+        function bersihkanLog() { document.getElementById('terminal_log').innerText = ""; }
 
         setInterval(async () => {
+            if(!currentUser) return;
             try {
                 const res = await fetch(`${baseUrl}/api/logs`);
                 const data = await res.json();
                 const term = document.getElementById('terminal_log');
                 term.innerText = data.logs;
                 term.scrollTop = term.scrollHeight;
-            } catch (e) {}
+            } catch(e) {}
         }, 1000);
     </script>
 </body>
