@@ -161,9 +161,11 @@
         </header>
 
         <!-- PANEL OWNER -->
+        <!-- PANEL OWNER -->
         <div id="owner_panel" class="card" style="display: none; border: 2px solid #38bdf8;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
                 <h3 style="color: #facc15; margin: 0; border: none; padding: 0;">👑 Panel Manajemen Admin / Owner</h3>
+                <!-- Tombol Refresh List Akun -->
                 <button class="btn-info" style="padding: 5px 12px; font-size: 0.8rem;" onclick="loadAdminUsers()">🔄 Refresh List Akun</button>
             </div>
             <p style="font-size: 0.85rem; color: var(--text-muted);">Kelola langganan, tambah saldo, atau hapus user.</p>
@@ -541,7 +543,7 @@
         }
         function bersihkanLog() { document.getElementById('terminal_log').innerText = ""; }
 
-        // --- WEBSOCKET UNTUK LIVE LOGS YANG RINGAN ---
+    function connectWebSocket() {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${wsProtocol}//${window.location.host}/ws/logs`;
         const logSocket = new WebSocket(wsUrl);
@@ -555,8 +557,11 @@
         };
 
         logSocket.onclose = function() {
-            console.log("WebSocket log terputus.");
+            console.log("WebSocket terputus. Mencoba menghubungkan ulang...");
+            setTimeout(connectWebSocket, 3000);
         };
-    </script>
-</body>
-</html>
+    }
+
+    // Jalankan fungsi koneksi WebSocket saat script dimuat
+    connectWebSocket();
+</script>
