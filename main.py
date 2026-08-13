@@ -642,10 +642,8 @@ async def websocket_logs(websocket: WebSocket):
     active_websockets.append(websocket)
     try:
         while True:
-            # Ambil log terbaru dari buffer
             current_logs = log_stream.get_logs()
             await websocket.send_text(current_logs)
-            # Kirim pembaruan setiap 0.5 detik (jauh lebih ringan dibanding HTTP polling konstan)
             await asyncio.sleep(0.5)
     except WebSocketDisconnect:
         active_websockets.remove(websocket)
