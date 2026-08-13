@@ -4,11 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from telethon import TelegramClient, events
 import asyncio
-import json
 import os
 import sys
 import io
 import openpyxl
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 app = FastAPI()
 
@@ -20,8 +21,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-CONFIG_FILE = 'settings.json'
-USERS_FILE = 'users_db.json'
+# Konfigurasi Database Supabase dari Environment Variables Railway
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL belum diatur di Environment Variables Railway!")
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(bind=engine)
+
 EXCEL_REPORT_FILE = 'laporan_klaim_koin_enterprise.xlsx'
 
 # ==========================================
@@ -52,55 +59,56 @@ sys.stdout = log_stream
 
 
 # ==========================================
-# 1. MANAJEMEN DATABASE & EXCEL
+# 1. MANAJEMEN SUPABASE DB & EXCEL
 # ==========================================
-def baca_database_user():
-    if not os.path.exists(USERS_FILE):
-        default_db = {
-            "owner": {
-                "password": "ownerpassword",
-                "role": "owner",
-                "status": "aktif",
-                "saldo": 100000.0
-            }
-        }
-        with open(USERS_FILE, 'w') as f:
-            json.dump(default_db, f, indent=4)
-        return default_db
-    try:
-        with open(USERS_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return {}
+def inisialisasi_tabel_db():
+    with SessionLocal() as db:
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password TEXT NOT NULL,
+                role TEXT DEFAULT 'user',
+                status TEXT DEFAULT 'pending',
+                saldo FLOAT DEFAULT 0.0
+            );
+        """))
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS settings (
+                username TEXT PRIMARY KEY,
+                api_id BIGINT,
+                api_hash TEXT,
+                nomor_hp TEXT,
+                bot_target TEXT,
+                delay_aksi FLOAT DEFAULT 1.5,
+                delay_repeat FLOAT DEFAULT 3.0,
+                list_cookie TEXT
+            );
+        """))
+        db.commit()
 
-def simpan_database_user(db):
-    with open(USERS_FILE, 'w') as f:
-        json.dump(db, f, indent=4)
-
-def baca_konfigurasi():
-    if not os.path.exists(CONFIG_FILE):
-        return {}
-    try:
-        with open(CONFIG_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return {}
+# Jalankan inisialisasi tabel saat startup
+inisialisasi_tabel_db()
 
 def ambil_dan_hapus_cookie(username):
     try:
-        db = baca_database_user()
-        # Mengambil cookie dari konfigurasi user atau global config
-        config = baca_konfigurasi()
-        cookies_str = config.get('list_cookie', '').strip()
-        if not cookies_str:
-            return None
-        cookies_list = cookies_str.split('\n')
-        cookie_terpakai = cookies_list.pop(0)
-        config['list_cookie'] = '\n'.join([c.strip() for c in cookies_list if c.strip()])
-        with open(CONFIG_FILE, 'w') as f:
-            json.dump(config, f, indent=4)
-        return cookie_terpakai.strip()
-    except:
+        with SessionLocal() as db:
+            res = db.execute(text("SELECT list_cookie FROM settings WHERE username = :u"), {"u": username}).fetchone()
+            if not res or not res.list_cookie:
+                return None
+            
+            cookies_str = res.list_cookie.strip()
+            if not cookies_str:
+                return None
+                
+            cookies_list = cookies_str.split('\n')
+            cookie_terpakai = cookies_list.pop(0)
+            sisa_cookie = '\n'.join([c.strip() for c in cookies_list if c.strip()])
+            
+            db.execute(text("UPDATE settings SET list_cookie = :lc WHERE username = :u"), {"lc": sisa_cookie, "u": username})
+            db.commit()
+            return cookie_terpakai.strip()
+    except Exception as e:
+        print(f"\n❌ Error ambil cookie [{username}]: {e}")
         return None
 
 def inisialisasi_excel_jika_belum_ada():
@@ -154,21 +162,26 @@ def catat_sukses_claim_ke_excel(username, cookie_str):
 # ==========================================
 # 2. MULTI-USER TELEGRAM SESSIONS ENGINE
 # ==========================================
-active_clients = {}  # Format: {username: {"client": client, "phone_code_hash": hash, "auto_claim": False}}
+active_clients = {}
 
 async def jalankan_siklus_misi(username, bot_target):
     user_session = active_clients.get(username)
     if not user_session or not user_session.get("auto_claim"):
         return
         
-    config = baca_konfigurasi()
-    delay_repeat = config.get('delay_repeat', 3.0)
+    with SessionLocal() as db:
+        st = db.execute(text("SELECT delay_repeat FROM settings WHERE username = :u"), {"u": username}).fetchone()
+        delay_repeat = st.delay_repeat if st and st.delay_repeat else 3.0
+        
     await asyncio.sleep(delay_repeat)
     
     if not user_session.get("auto_claim"):
         return
 
-    sisa_cookie = config.get('list_cookie', '').strip()
+    with SessionLocal() as db:
+        st = db.execute(text("SELECT list_cookie FROM settings WHERE username = :u"), {"u": username}).fetchone()
+        sisa_cookie = st.list_cookie.strip() if st and st.list_cookie else ""
+        
     if not sisa_cookie:
         print(f"\n❌ AUTO CLAIM [{username}] BERHENTI: Antrean cookie habis.")
         user_session["auto_claim"] = False
@@ -187,8 +200,10 @@ def daftarkan_listener_user(username, client, bot_target):
         if not user_session or not user_session.get("auto_claim"):
             return
 
-        config = baca_konfigurasi()
-        delay_aksi = config.get('delay_aksi', 1.5)
+        with SessionLocal() as db:
+            st = db.execute(text("SELECT delay_aksi FROM settings WHERE username = :u"), {"u": username}).fetchone()
+            delay_aksi = st.delay_aksi if st and st.delay_aksi else 1.5
+
         teks_masuk = event.raw_text
         print(f"\n📥 [{username}] Pesan masuk: {teks_masuk}")
         
@@ -220,8 +235,9 @@ def daftarkan_listener_user(username, client, bot_target):
                     
         elif "Masukkan raw cookie" in teks_masuk:
             await asyncio.sleep(delay_aksi) 
-            config_current = baca_konfigurasi()
-            cookies_str_preview = config_current.get('list_cookie', '').strip()
+            with SessionLocal() as db:
+                st = db.execute(text("SELECT list_cookie FROM settings WHERE username = :u"), {"u": username}).fetchone()
+                cookies_str_preview = st.list_cookie.strip() if st and st.list_cookie else ""
             cookie_akurat = cookies_str_preview.split('\n')[0].strip() if cookies_str_preview else ""
             
             cookie = ambil_dan_hapus_cookie(username)
@@ -251,11 +267,13 @@ def daftarkan_listener_user(username, client, bot_target):
                     berhasil_catat = catat_sukses_claim_ke_excel(akun_target if akun_target != "Unknown" else "Akun_Processed", cookie_user)
                     
                     if berhasil_catat:
-                        db = baca_database_user()
-                        if username in db:
-                            db[username]["saldo"] = max(0.0, db[username].get("saldo", 0.0) - 200.0)
-                            simpan_database_user(db)
-                            print(f"💰 [{username}] Saldo terpotong Rp 200 (Sisa: Rp {db[username]['saldo']})")
+                        with SessionLocal() as db:
+                            usr_row = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": username}).fetchone()
+                            if usr_row:
+                                new_saldo = max(0.0, usr_row.saldo - 200.0)
+                                db.execute(text("UPDATE users SET saldo = :s WHERE username = :u"), {"s": new_saldo, "u": username})
+                                db.commit()
+                                print(f"💰 [{username}] Saldo terpotong Rp 200 (Sisa: Rp {new_saldo})")
                         
                 except Exception as parse_err:
                     print(f"⚠️ Error parsing [{username}]: {parse_err}")
@@ -294,6 +312,7 @@ class VerifyOTP(BaseModel):
     kode_otp: str
 
 class EngineSettings(BaseModel):
+    username: str
     api_id: int
     api_hash: str
     nomor_hp: str
@@ -311,76 +330,102 @@ async def baca_index():
 
 @app.post("/api/login")
 async def login_user(data: UserAuth):
-    db = baca_database_user()
-    if data.username in db and db[data.username]["password"] == data.password:
-        user_data = db[data.username]
-        if user_data["role"] != "owner" and user_data.get("status") != "aktif":
-            return {"status": "error", "message": "Akun Anda belum aktif! Silakan contact Admin untuk berlangganan."}
-        return {"status": "success", "role": user_data["role"], "saldo": user_data["saldo"], "username": data.username}
+    with SessionLocal() as db:
+        # Auto insert owner default jika tabel kosong
+        owner_check = db.execute(text("SELECT username FROM users WHERE username = 'owner'")).fetchone()
+        if not owner_check:
+            db.execute(text("INSERT INTO users (username, password, role, status, saldo) VALUES ('owner', 'ownerpassword', 'owner', 'aktif', 100000.0) ON CONFLICT DO NOTHING"))
+            db.commit()
+
+        user = db.execute(text("SELECT * FROM users WHERE username = :u AND password = :p"), {"u": data.username, "p": data.password}).fetchone()
+        if user:
+            if user.role != "owner" and user.status != "aktif":
+                return {"status": "error", "message": "Akun Anda belum aktif! Silakan contact Admin untuk berlangganan."}
+            return {"status": "success", "role": user.role, "saldo": user.saldo, "username": data.username}
     return {"status": "error", "message": "Username atau Password salah!"}
 
 @app.post("/api/register")
 async def register_user(data: UserRegister):
-    db = baca_database_user()
-    if data.username in db:
-        return {"status": "error", "message": "Username sudah terdaftar!"}
-    
-    db[data.username] = {
-        "password": data.password,
-        "role": "user",
-        "status": "pending",
-        "saldo": 0.0
-    }
-    simpan_database_user(db)
+    with SessionLocal() as db:
+        existing = db.execute(text("SELECT username FROM users WHERE username = :u"), {"u": data.username}).fetchone()
+        if existing:
+            return {"status": "error", "message": "Username sudah terdaftar!"}
+        
+        db.execute(
+            text("INSERT INTO users (username, password, role, status, saldo) VALUES (:u, :p, 'user', 'pending', 0.0)"),
+            {"u": data.username, "p": data.password}
+        )
+        db.commit()
     return {"status": "success", "message": "Registrasi berhasil! Akun Anda berstatus PENDING. Silakan contact Admin agar akun Anda diaktifkan."}
 
 @app.get("/api/admin/users")
 async def get_all_users(username: str):
-    db = baca_database_user()
-    if username not in db or db[username]["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Akses ditolak.")
-    return {"users": db}
+    with SessionLocal() as db:
+        admin = db.execute(text("SELECT role FROM users WHERE username = :u"), {"u": username}).fetchone()
+        if not admin or admin.role != "owner":
+            raise HTTPException(status_code=403, detail="Akses ditolak.")
+        
+        rows = db.execute(text("SELECT username, role, status, saldo FROM users")).fetchall()
+        users_dict = {}
+        for r in rows:
+            users_dict[r.username] = {
+                "role": r.role,
+                "status": r.status,
+                "saldo": r.saldo
+            }
+    return {"users": users_dict}
 
 @app.post("/api/admin/manage")
 async def admin_manage_user(data: AdminManage, admin_user: str):
-    db = baca_database_user()
-    if admin_user not in db or db[admin_user]["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Akses ditolak.")
-    
-    target = data.target_username
-    if target not in db:
-        return {"status": "error", "message": "User tidak ditemukan."}
-    
-    db[target]["status"] = data.status
-    if data.tambah_saldo > 0:
-        db[target]["saldo"] = db[target].get("saldo", 0.0) + data.tambah_saldo
+    with SessionLocal() as db:
+        admin = db.execute(text("SELECT role FROM users WHERE username = :u"), {"u": admin_user}).fetchone()
+        if not admin or admin.role != "owner":
+            raise HTTPException(status_code=403, detail="Akses ditolak.")
         
-    simpan_database_user(db)
-    return {"status": "success", "message": f"Data user {target} berhasil diperbarui!"}
+        target_row = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": data.target_username}).fetchone()
+        if not target_row:
+            return {"status": "error", "message": "User tidak ditemukan."}
+        
+        new_saldo = target_row.saldo + data.tambah_saldo if data.tambah_saldo > 0 else target_row.saldo
+        db.execute(text("UPDATE users SET status = :st, saldo = :sd WHERE username = :u"), 
+                   {"st": data.status, "sd": new_saldo, "u": data.target_username})
+        db.commit()
+    return {"status": "success", "message": f"Data user {data.target_username} berhasil diperbarui!"}
 
 @app.post("/api/admin/delete")
 async def admin_delete_user(data: AdminDelete, admin_user: str):
-    db = baca_database_user()
-    if admin_user not in db or db[admin_user]["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Akses ditolak.")
-    
-    target = data.target_username
-    if target not in db:
-        return {"status": "error", "message": "User tidak ditemukan."}
-    if target == "owner":
-        return {"status": "error", "message": "Akun owner utama tidak dapat dihapus!"}
-    
-    del db[target]
-    simpan_database_user(db)
-    return {"status": "success", "message": f"User {target} berhasil dihapus!"}
+    with SessionLocal() as db:
+        admin = db.execute(text("SELECT role FROM users WHERE username = :u"), {"u": admin_user}).fetchone()
+        if not admin or admin.role != "owner":
+            raise HTTPException(status_code=403, detail="Akses ditolak.")
+        
+        if data.target_username == "owner":
+            return {"status": "error", "message": "Akun owner utama tidak dapat dihapus!"}
+        
+        db.execute(text("DELETE FROM users WHERE username = :u"), {"u": data.target_username})
+        db.execute(text("DELETE FROM settings WHERE username = :u"), {"u": data.target_username})
+        db.commit()
+    return {"status": "success", "message": f"User {data.target_username} berhasil dihapus!"}
 
 @app.get("/api/logs")
 async def get_logs():
     return {"logs": log_stream.get_logs()}
 
 @app.get("/api/get_config")
-async def get_config():
-    return baca_konfigurasi()
+async def get_config(username: str):
+    with SessionLocal() as db:
+        res = db.execute(text("SELECT * FROM settings WHERE username = :u"), {"u": username}).fetchone()
+        if not res:
+            return {}
+        return {
+            "api_id": res.api_id,
+            "api_hash": res.api_hash,
+            "nomor_hp": res.nomor_hp,
+            "bot_target": res.bot_target,
+            "delay_aksi": res.delay_aksi,
+            "delay_repeat": res.delay_repeat,
+            "list_cookie": res.list_cookie
+        }
 
 @app.get("/api/download_excel")
 async def download_excel():
@@ -391,9 +436,24 @@ async def download_excel():
 
 @app.post("/api/simpan_pengaturan")
 async def simpan_pengaturan(settings: EngineSettings):
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(settings.dict(), f, indent=4)
-    return {"status": "success", "message": "Konfigurasi disimpan!"}
+    with SessionLocal() as db:
+        db.execute(text("""
+            INSERT INTO settings (username, api_id, api_hash, nomor_hp, bot_target, delay_aksi, delay_repeat, list_cookie)
+            VALUES (:u, :ai, :ah, :nh, :bt, :da, :dr, :lc)
+            ON CONFLICT (username) DO UPDATE 
+            SET api_id=:ai, api_hash=:ah, nomor_hp=:nh, bot_target=:bt, delay_aksi=:da, delay_repeat=:dr, list_cookie=:lc
+        """), {
+            "u": settings.username,
+            "ai": settings.api_id,
+            "ah": settings.api_hash,
+            "nh": settings.nomor_hp,
+            "bt": settings.bot_target,
+            "da": settings.delay_aksi,
+            "dr": settings.delay_repeat,
+            "lc": settings.list_cookie
+        })
+        db.commit()
+    return {"status": "success", "message": "Konfigurasi disimpan ke Supabase!"}
 
 @app.post("/api/hubungkan_user")
 async def hubungkan_user_telegram(data: ConnectTelegram):
@@ -436,13 +496,15 @@ async def verifikasi_otp_user(data: VerifyOTP):
     if not user_session:
         return {"status": "error", "message": "Sesi tidak ditemukan. Hubungkan ulang."}
     
-    config = baca_konfigurasi()
+    with SessionLocal() as db:
+        st = db.execute(text("SELECT nomor_hp FROM settings WHERE username = :u"), {"u": data.username}).fetchone()
+        nomor_hp = st.nomor_hp if st else ""
+
     try:
         client = user_session["client"]
         phone_hash = user_session["phone_code_hash"]
         
-        # Ambil nomor HP dari settings atau config user
-        await client.sign_in(phone=config.get('nomor_hp'), code=data.kode_otp.strip(), phone_code_hash=phone_hash)
+        await client.sign_in(phone=nomor_hp, code=data.kode_otp.strip(), phone_code_hash=phone_hash)
         daftarkan_listener_user(data.username, client, user_session["bot_target"])
         user_session["phone_code_hash"] = None
         return {"status": "success", "message": f"Verifikasi OTP [{data.username}] Berhasil!"}
@@ -456,9 +518,10 @@ async def start_claim_user(data: dict):
     if not user_session or not user_session["client"].is_connected():
         return {"status": "error", "message": "Telegram belum terhubung untuk user ini!"}
         
-    db = baca_database_user()
-    if username in db and db[username].get("saldo", 0) <= 0:
-        return {"status": "error", "message": "Saldo Anda habis! Silakan lakukan pengisian saldo (top-up) ke Admin."}
+    with SessionLocal() as db:
+        usr = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": username}).fetchone()
+        if not usr or usr.saldo <= 0:
+            return {"status": "error", "message": "Saldo Anda habis! Silakan lakukan pengisian saldo (top-up) ke Admin."}
 
     user_session["auto_claim"] = True
     asyncio.create_task(jalankan_siklus_misi(username, user_session["bot_target"]))
