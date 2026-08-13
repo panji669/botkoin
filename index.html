@@ -543,25 +543,54 @@
         }
         function bersihkanLog() { document.getElementById('terminal_log').innerText = ""; }
 
-    function connectWebSocket() {
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/logs`;
-        const logSocket = new WebSocket(wsUrl);
-
-        logSocket.onmessage = function(event) {
-            const term = document.getElementById('terminal_log');
-            if (term) {
-                term.innerText = event.data;
-                term.scrollTop = term.scrollHeight;
+    // --- LIVE LOGS ENGINE DENGAN WEBSOCKET & FALLBACK POLLING ---
+    function initLiveLogs() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/logs`;
+            
+            let ws;
+            try {
+                ws = new WebSocket(wsUrl);
+            } catch (err) {
+                console.log("WebSocket gagal diinisialisasi, beralih ke HTTP Polling.");
+                startHttpPolling();
+                return;
             }
-        };
 
-        logSocket.onclose = function() {
-            console.log("WebSocket terputus. Mencoba menghubungkan ulang...");
-            setTimeout(connectWebSocket, 3000);
-        };
-    }
+            ws.onmessage = function(event) {
+                const term = document.getElementById('terminal_log');
+                if (term) {
+                    term.innerText = event.data;
+                    term.scrollTop = term.scrollHeight;
+                }
+            };
 
-    // Jalankan fungsi koneksi WebSocket saat script dimuat
-    connectWebSocket();
-</script>
+            ws.onerror = function(error) {
+                console.warn("WebSocket bermasalah, mengaktifkan mode HTTP Polling cadangan.");
+                startHttpPolling();
+            };
+
+            ws.onclose = function() {
+                // Coba reconnect otomatis setelah 3 detik
+                setTimeout(initLiveLogs, 3000);
+            };
+        }
+
+        // Mode cadangan jika WebSocket diblokir oleh jaringan/proxy Railway
+        function startHttpPolling() {
+            setInterval(async () => {
+                if(!currentUser) return;
+                try {
+                    const res = await fetch(`${baseUrl}/api/logs`);
+                    const data = await res.json();
+                    const term = document.getElementById('terminal_log');
+                    if (term && data.logs) {
+                        term.innerText = data.logs;
+                        term.scrollTop = term.scrollHeight;
+                    }
+                } catch(e) {}
+            }, 1000);
+        }
+
+        // Jalankan sistem log saat halaman dibuka
+        initLiveLogs();
