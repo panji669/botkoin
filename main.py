@@ -169,29 +169,39 @@ async def jalankan_siklus_misi(username, bot_target):
     if not user_session or not user_session.get("auto_claim"):
         return
         
-    with SessionLocal() as db:
-        st = db.execute(text("SELECT delay_repeat FROM settings WHERE username = :u"), {"u": username}).fetchone()
-        delay_repeat = st.delay_repeat if st and st.delay_repeat else 3.0
-        
-    await asyncio.sleep(delay_repeat)
-    
-    if not user_session.get("auto_claim"):
+    # Cek apakah sedang dalam proses pengiriman agar tidak nabrak ganda
+    if user_session.get("lock_mission", False):
         return
-
-    with SessionLocal() as db:
-        st = db.execute(text("SELECT list_cookie FROM settings WHERE username = :u"), {"u": username}).fetchone()
-        sisa_cookie = st.list_cookie.strip() if st and st.list_cookie else ""
-        
-    if not sisa_cookie:
-        print(f"\n❌ AUTO CLAIM [{username}] BERHENTI: Antrean cookie habis.")
-        user_session["auto_claim"] = False
-        return
+    user_session["lock_mission"] = True
 
     try:
+        config = baca_konfigurasi()
+        # Ambil delay dari database user yang bersangkutan
+        with SessionLocal() as db:
+            st = db.execute(text("SELECT delay_repeat FROM settings WHERE username = :u"), {"u": username}).fetchone()
+            delay_repeat = st.delay_repeat if st and st.delay_repeat else 3.0
+            
+        await asyncio.sleep(delay_repeat)
+        
+        if not user_session.get("auto_claim"):
+            return
+
+        with SessionLocal() as db:
+            st = db.execute(text("SELECT list_cookie FROM settings WHERE username = :u"), {"u": username}).fetchone()
+            sisa_cookie = st.list_cookie.strip() if st and st.list_cookie else ""
+            
+        if not sisa_cookie:
+            print(f"\n❌ AUTO CLAIM [{username}] BERHENTI: Antrean cookie habis.")
+            user_session["auto_claim"] = False
+            return
+
         client = user_session["client"]
         await client.send_message(bot_target, '/mission')
     except Exception as e:
         print(f"\n❌ Gagal kirim /mission [{username}]: {e}")
+    finally:
+        # Buka kembali kunci setelah selesai
+        user_session["lock_mission"] = False")
 
 def daftarkan_listener_user(username, client, bot_target):
     @client.on(events.NewMessage(chats=bot_target, incoming=True))
