@@ -207,7 +207,6 @@
             </div>
         </div>
 
-        <div class="card">
         <!-- PENGATURAN COOKIE, DELAY, & LAPORAN -->
         <div class="card">
             <h3>⚙️ Konfigurasi Automation & Cookie</h3>
@@ -253,9 +252,9 @@
     </div>
 
     <script>
-    const baseUrl = window.location.origin; // Otomatis mendeteksi domain aktif (Railway/Render/Localhost)
-    let currentUser = null;
-    let userRole = null;
+        const baseUrl = window.location.origin;
+        let currentUser = null;
+        let userRole = null;
 
         function switchAuth(target) {
             if(target === 'register') {
@@ -309,7 +308,6 @@
                     body: JSON.stringify({username: u, password: p})
                 });
                 const data = await res.json();
-                // Menampilkan pesan dari backend secara spesifik
                 if(data.status === 'success') {
                     alert("✅ " + data.message);
                     switchAuth('login');
@@ -321,17 +319,12 @@
             }
         }
 
-
-        // Fungsi untuk membaca file .txt dan memasukkannya ke textarea antrean cookie
         function importCookieFile(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = function(e) {
-                const kontenFile = e.target.result;
-                // Masukkan isi file ke dalam textarea list_cookie
-                document.getElementById('list_cookie').value = kontenFile;
+                document.getElementById('list_cookie').value = e.target.result;
                 alert("📁 Berhasil memuat daftar cookie dari file .txt!");
             };
             reader.readAsText(file);
@@ -411,14 +404,14 @@
         }
 
         async function loadConfig() {
+            if(!currentUser) return;
             try {
-                const res = await fetch(`${baseUrl}/api/get_config`);
+                const res = await fetch(`${baseUrl}/api/get_config?username=${currentUser}`);
                 const config = await res.json();
                 if(config.api_id) document.getElementById('api_id').value = config.api_id;
                 if(config.api_hash) document.getElementById('api_hash').value = config.api_hash;
                 if(config.nomor_hp) document.getElementById('nomor_hp').value = config.nomor_hp;
                 if(config.bot_target) document.getElementById('bot_target').value = config.bot_target;
-                // Memuat nilai delay dari server
                 if(config.delay_aksi) document.getElementById('delay_aksi').value = config.delay_aksi;
                 if(config.delay_repeat) document.getElementById('delay_repeat').value = config.delay_repeat;
                 if(config.list_cookie) document.getElementById('list_cookie').value = config.list_cookie;
@@ -426,23 +419,25 @@
         }
 
         async function simpanPengaturan() {
+            if(!currentUser) return;
             const data = {
-                api_id: parseInt(document.getElementById('api_id').value),
+                username: currentUser,
+                api_id: parseInt(document.getElementById('api_id').value) || 0,
                 api_hash: document.getElementById('api_hash').value,
                 nomor_hp: document.getElementById('nomor_hp').value.trim(),
                 bot_target: document.getElementById('bot_target').value.trim(),
-                // Menambahkan delay yang disesuaikan user
-                delay_aksi: parseFloat(document.getElementById('delay_aksi').value),
-                delay_repeat: parseFloat(document.getElementById('delay_repeat').value),
+                delay_aksi: parseFloat(document.getElementById('delay_aksi').value) || 1.5,
+                delay_repeat: parseFloat(document.getElementById('delay_repeat').value) || 3.0,
                 list_cookie: document.getElementById('list_cookie').value
             };
             
-            await fetch(`${baseUrl}/api/simpan_pengaturan`, {
+            const res = await fetch(`${baseUrl}/api/simpan_pengaturan`, {
                 method: 'POST', 
                 headers: {'Content-Type': 'application/json'}, 
                 body: JSON.stringify(data)
             });
-            alert("✅ Konfigurasi delay & cookie disimpan!");
+            const result = await res.json();
+            alert(result.status === 'success' ? "✅ Konfigurasi disimpan ke Supabase!" : "❌ Gagal menyimpan.");
         }
 
         async function hubungkanTelegramUser() {
