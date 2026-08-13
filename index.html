@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise RPA Bot Command Center</title>
+    <style>
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --border-color: #334155;
+            --accent-green: #10b981;
+            --accent-green-hover: #059669;
+            --accent-danger: #ef4444;
+            --accent-danger-hover: #dc2626;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 30px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 850px;
+        }
+
+        header {
+            margin-bottom: 25px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            margin: 0;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            color: #38bdf8;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        input, textarea {
+            background-color: #0b0f19;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 10px 12px;
+            border-radius: 6px;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #38bdf8;
+        }
+
+        textarea {
+            resize: vertical;
+            font-family: monospace;
+        }
+
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        button:active { transform: scale(0.98); }
+
+        .btn-green { background-color: var(--accent-green); color: white; }
+        .btn-green:hover { background-color: var(--accent-green-hover); }
+        .btn-danger { background-color: var(--accent-danger); color: white; }
+        .btn-danger:hover { background-color: var(--accent-danger-hover); }
+        .btn-dark { background-color: #475569; color: white; }
+        .btn-dark:hover { background-color: #334155; }
+        .btn-info { background-color: #0284c7; color: white; }
+        .btn-info:hover { background-color: #0369a1; }
+        .btn-excel { background-color: #16a34a; color: white; }
+        .btn-excel:hover { background-color: #15803d; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+        }
+
+        .status-badge.connected {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+        }
+
+        .flex-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .terminal-box {
+            background-color: #030712;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 16px;
+            height: 260px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            color: #f8fafc;
+            white-space: pre-wrap;
+            word-break: break-all;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>⚡ Enterprise RPA Bot Command Center</h1>
+        </header>
+
+        <!-- STATUS BAR -->
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Status Koneksi Telegram:</span>
+            <span id="status_koneksi" class="status-badge">TERPUTUS</span>
+        </div>
+
+        <!-- KONEKSI TELEGRAM -->
+        <div class="card">
+            <h3>🔌 Konfigurasi Kredensial Telegram</h3>
+            <div class="grid-2">
+                <div>
+                    <label>API ID</label>
+                    <input type="number" id="api_id" value="37776286">
+                </div>
+                <div>
+                    <label>API Hash</label>
+                    <input type="text" id="api_hash" value="a3b1731a5dc556ac1ee44a121cbcf">
+                </div>
+            </div>
+            <div style="margin-top: 12px;" class="grid-2">
+                <div>
+                    <label>Nomor HP (+62)</label>
+                    <input type="text" id="nomor_hp" value="+6281290306599">
+                </div>
+                <div>
+                    <label>Bot Target</label>
+                    <input type="text" id="bot_target" value="shp_tools_bot">
+                </div>
+            </div>
+            <div style="margin-top: 15px;" class="flex-row">
+                <button class="btn-green" onclick="hubungkanTelegram()">🔗 1. Kirim OTP / Hubungkan</button>
+            </div>
+
+            <!-- KOTAK INPUT OTP TERPISAH (AGAR TIDAK GAGAL) -->
+            <div id="otp_container" style="display: none; margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 12px;">
+                <label style="color: #38bdf8; font-weight: bold;">📲 Masukkan Kode OTP dari Telegram:</label>
+                <div class="flex-row">
+                    <input type="text" id="kode_otp_input" placeholder="Contoh: 12345" style="max-width: 200px;">
+                    <button class="btn-info" onclick="kirimOTPManual()">✅ 2. Verifikasi OTP</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PENGATURAN DELAY -->
+        <div class="card">
+            <h3>⚙️ Konfigurasi Timing & Delay Eksekusi</h3>
+            <div class="grid-2">
+                <div>
+                    <label>Delay Antar Aksi / Klik (Detik)</label>
+                    <input type="number" step="0.1" id="delay_aksi" value="1.5">
+                </div>
+                <div>
+                    <label>Delay Sebelum Repeat /mission (Detik)</label>
+                    <input type="number" step="0.1" id="delay_repeat" value="3.0">
+                </div>
+            </div>
+        </div>
+
+        <!-- PENGATURAN COOKIE & LAPORAN EXCEL -->
+        <div class="card">
+            <h3>🍪 Manajemen Antrean Raw Cookie & Laporan</h3>
+            <label>Masukkan daftar cookie (1 baris = 1 akun):</label>
+            <textarea id="list_cookie" rows="6" placeholder="Paste cookie di sini..."></textarea>
+            
+            <div style="margin-top: 12px;" class="flex-row">
+                <button class="btn-dark" onclick="simpanPengaturan()">💾 Simpan Konfigurasi</button>
+                <input type="file" id="file_cookie_input" style="display: none;" accept=".txt" onchange="importCookieFile(event)">
+                <button class="btn-info" onclick="document.getElementById('file_cookie_input').click()">📁 Impor .txt</button>
+                <button class="btn-info" onclick="exportCookieFile()">📥 Backup .txt</button>
+                <button class="btn-excel" onclick="downloadExcelReport()">📊 Download Laporan Excel</button>
+            </div>
+        </div>
+
+        <!-- KONTROL AUTO CLAIM -->
+        <div class="card">
+            <h3>🚀 Eksekusi Otomatis (Automation Runner)</h3>
+            <div class="flex-row">
+                <button class="btn-green" onclick="mulaiClaim()">▶️ Start Automation</button>
+                <button class="btn-danger" onclick="stopClaim()">⏹️ Stop Automation</button>
+            </div>
+            <p id="status_claim" style="margin-top: 12px; font-weight: 500; color: #38bdf8;">Status Runner: Standby</p>
+        </div>
+
+        <!-- LIVE LOG TERMINAL -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
+                <h3 style="margin: 0; border: none; padding: 0;">💻 Live Engine Logs</h3>
+                <button class="btn-dark" style="padding: 4px 10px; font-size: 0.75rem;" onclick="bersihkanLog()">🗑️ Clear Log</button>
+            </div>
+            <div id="terminal_log" class="terminal-box">Menunggu sistem berjalan...</div>
+        </div>
+    </div>
+
+    <!-- SCRIPT INTERAKSI -->
+    <script>
+        const baseUrl = "http://127.0.0.1:8000";
+
+        window.onload = async () => {
+            try {
+                const res = await fetch(`${baseUrl}/api/get_config`);
+                const config = await res.json();
+                if(config) {
+                    if(config.api_id) document.getElementById('api_id').value = config.api_id;
+                    if(config.api_hash) document.getElementById('api_hash').value = config.api_hash;
+                    if(config.nomor_hp) document.getElementById('nomor_hp').value = config.nomor_hp;
+                    if(config.bot_target) document.getElementById('bot_target').value = config.bot_target;
+                    if(config.delay_aksi) document.getElementById('delay_aksi').value = config.delay_aksi;
+                    if(config.delay_repeat) document.getElementById('delay_repeat').value = config.delay_repeat;
+                    if(config.list_cookie) document.getElementById('list_cookie').value = config.list_cookie;
+                }
+            } catch(e) { console.log("Gagal memuat konfigurasi awal"); }
+        };
+
+        async function simpanPengaturan() {
+            const data = {
+                api_id: parseInt(document.getElementById('api_id').value),
+                api_hash: document.getElementById('api_hash').value,
+                nomor_hp: document.getElementById('nomor_hp').value,
+                bot_target: document.getElementById('bot_target').value,
+                delay_aksi: parseFloat(document.getElementById('delay_aksi').value),
+                delay_repeat: parseFloat(document.getElementById('delay_repeat').value),
+                list_cookie: document.getElementById('list_cookie').value,
+                otp_timeout: 50, otp_interval: 3, hunt_max: 10, hunt_delay: 1.0, jeda_setelah_order: 3.0, jeda_antar_aksi: 0.5
+            };
+
+            try {
+                const response = await fetch(`${baseUrl}/api/simpan_pengaturan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                alert("✅ " + result.message);
+            } catch (error) {
+                alert("❌ Gagal menyimpan pengaturan.");
+            }
+        }
+
+        async function hubungkanTelegram() {
+            // Otomatis simpan pengaturan dulu sebelum menghubungkan
+            await simpanPengaturan();
+            
+            document.getElementById('status_koneksi').innerText = "MENGHUBUNGKAN...";
+            try {
+                const response = await fetch(`${baseUrl}/api/hubungkan`, { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.status === 'otp_required') {
+                    document.getElementById('otp_container').style.display = 'block';
+                    alert("📲 " + result.message + "\n\nSilakan masukkan kode OTP pada kolom di bawah tombol hubungkan.");
+                } else if (result.status === 'connected') {
+                    setTerhubung();
+                    alert("✅ " + result.message);
+                } else {
+                    alert("❌ " + result.message);
+                    document.getElementById('status_koneksi').innerText = "GAGAL";
+                }
+            } catch (error) {
+                document.getElementById('status_koneksi').innerText = "GAGAL";
+                alert("❌ Terjadi kesalahan jaringan saat menghubungkan.");
+            }
+        }
+
+        async function kirimOTPManual() {
+            const kodeOtp = document.getElementById('kode_otp_input').value.trim();
+            if(!kodeOtp) {
+                alert("Harap masukkan kode OTP terlebih dahulu!");
+                return;
+            }
+
+            const response = await fetch(`${baseUrl}/api/verifikasi_otp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kode_otp: kodeOtp })
+            });
+            const result = await response.json();
+            if(result.status === 'success') {
+                setTerhubung();
+                document.getElementById('otp_container').style.display = 'none';
+                alert("✅ " + result.message);
+            } else {
+                alert("❌ " + result.message);
+            }
+        }
+
+        function importCookieFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('list_cookie').value = e.target.result;
+                simpanPengaturan();
+                alert("📁 Berhasil memuat antrean cookie dari file!");
+            };
+            reader.readAsText(file);
+        }
+
+        function exportCookieFile() {
+            const content = document.getElementById('list_cookie').value;
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'backup_cookie_list.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadExcelReport() {
+            window.location.href = `${baseUrl}/api/download_excel`;
+        }
+
+        async function mulaiClaim() {
+            document.getElementById('status_claim').innerText = "Status Runner: 🚀 BERJALAN AKTIF";
+            const res = await fetch(`${baseUrl}/api/start_claim`, { method: 'POST' });
+            const data = await res.json();
+            if(data.status === 'error') alert(data.message);
+        }
+
+        async function stopClaim() {
+            document.getElementById('status_claim').innerText = "Status Runner: ⏹️ DIHENTIKAN";
+            await fetch(`${baseUrl}/api/stop_claim`, { method: 'POST' });
+        }
+
+        function setTerhubung() {
+            const el = document.getElementById('status_koneksi');
+            el.innerText = "TERHUBUNG";
+            el.className = "status-badge connected";
+        }
+
+        function bersihkanLog() {
+            document.getElementById('terminal_log').innerText = "";
+        }
+
+        setInterval(async () => {
+            try {
+                const res = await fetch(`${baseUrl}/api/logs`);
+                const data = await res.json();
+                const term = document.getElementById('terminal_log');
+                term.innerText = data.logs;
+                term.scrollTop = term.scrollHeight;
+            } catch (e) {}
+        }, 1000);
+    </script>
+</body>
+</html>
