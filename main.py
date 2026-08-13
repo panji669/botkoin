@@ -13,6 +13,7 @@ import openpyxl
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+
 app = FastAPI()
 
 app.add_middleware(
@@ -23,6 +24,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ==========================================
+# 0. SISTEM BUFFER LIVE LOG TERMINAL & WEBSOCKET
+# ==========================================
+class LogBuffer(io.StringIO):
+    def __init__(self):
+        super().__init__()
+        self.log_content = ["Sistem Bot Berhasil Dimulai...\n"]
+
+    def write(self, s):
+        sys.__stdout__.write(s)
+        sys.__stdout__.flush()
+        if s.strip():
+            formatted_s = s if s.endswith('\n') else s + '\n'
+            self.log_content.append(formatted_s)
+            if len(self.log_content) > 150: 
+                self.log_content.pop(0)
+
+    def flush(self):
+        pass
+
+    def get_logs(self):
+        return "".join(self.log_content)
+
+log_stream = LogBuffer()
+sys.stdout = log_stream
+
+# Simpan daftar koneksi WebSocket yang aktif
+active_websockets = []
+
+@app.websocket("/ws/logs")
+async def websocket_logs(websocket: WebSocket):
+    await websocket.accept()
+    active_websockets.append(websocket)
+    try:
+        # Kirim log awal seketika tersambung
+        await websocket.send_text(log_stream.get_logs())
+        while True:
+            current_logs = log_stream.get_logs()
+            await websocket.send_text(current_logs)
+            await asyncio.sleep(0.5)
+    except WebSocketDisconnect:
+        if websocket in active_websockets:
+            active_websockets.remove(websocket)
+    except Exception as e:
+        print(f"WebSocket Error: {e}")
+        if websocket in active_websockets:
+            active_websockets.remove(websocket)
+
+            
 def baca_konfigurasi():
     # Helper untuk kompatibilitas fungsi lama yang membaca konfigurasi
     try:
