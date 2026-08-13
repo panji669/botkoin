@@ -201,7 +201,7 @@ async def jalankan_siklus_misi(username, bot_target):
         print(f"\n❌ Gagal kirim /mission [{username}]: {e}")
     finally:
         # Buka kembali kunci setelah selesai
-        user_session["lock_mission"] = False")
+        user_session["lock_mission"] = False
 
 def daftarkan_listener_user(username, client, bot_target):
     @client.on(events.NewMessage(chats=bot_target, incoming=True))
