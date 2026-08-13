@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 import asyncio
 import os
 import sys
@@ -564,3 +565,69 @@ async def stop_claim_user(data: dict):
     if username in active_clients:
         active_clients[username]["auto_claim"] = False
     return {"status": "success", "message": f"Automation [{username}] dihentikan."}
+
+# Saat menghubungkan atau memuat sesi user:
+@app.post("/api/hubungkan_user")
+async def hubungkan_user_telegram(data: ConnectTelegram):
+    try:
+        # Ambil session_string yang sudah pernah tersimpan di Supabase sebelumnya (jika ada)
+        with SessionLocal() as db:
+            st = db.execute(text("SELECT session_string FROM settings WHERE username = :u"), {"u": data.username}).fetchone()
+            saved_string = st.session_string if st and st.session_string else ""
+
+        # Gunakan StringSession dari Telethon
+        client = TelegramClient(StringSession(saved_string), int(data.api_id), str(data.api_hash))
+        await client.connect()
+        
+        # Jika belum authorized atau string session kosong/expired
+        if not await client.is_user_authorized():
+            res_otp = await client.send_code_request(data.nomor_hp)
+            active_clients[data.username] = {
+                "client": client,
+                "phone_code_hash": res_otp.phone_code_hash,
+                "auto_claim": False,
+                "bot_target": data.bot_target
+            }
+            return {"status": "otp_required", "message": f"OTP terkirim ke Telegram [{data.username}]."}
+
+        # Jika sudah tersambung otomatis lewat string session tersimpan
+        daftarkan_listener_user(data.username, client, data.bot_target)
+        active_clients[data.username] = {
+            "client": client,
+            "phone_code_hash": None,
+            "auto_claim": False,
+            "bot_target": data.bot_target
+        }
+        return {"status": "connected", "message": f"Telegram [{data.username}] terhubung otomatis dari Supabase!"}
+    except Exception as e:
+        return {"status": "error", "message": f"Gagal koneksi: {str(e)}"}
+
+@app.post("/api/verifikasi_otp_user")
+async def verifikasi_otp_user(data: VerifyOTP):
+    user_session = active_clients.get(data.username)
+    if not user_session:
+        return {"status": "error", "message": "Sesi tidak ditemukan. Hubungkan ulang."}
+    
+    with SessionLocal() as db:
+        st = db.execute(text("SELECT nomor_hp FROM settings WHERE username = :u"), {"u": data.username}).fetchone()
+        nomor_hp = st.nomor_hp if st else ""
+
+    try:
+        client = user_session["client"]
+        phone_hash = user_session["phone_code_hash"]
+        
+        await client.sign_in(phone=nomor_hp, code=data.kode_otp.strip(), phone_code_hash=phone_hash)
+        
+        # Ambil string sesi rahasia dari Telethon
+        session_str = client.session.save()
+
+        # Simpan string sesi permanen ke database Supabase milik user tersebut
+        with SessionLocal() as db:
+            db.execute(text("UPDATE settings SET session_string = :ss WHERE username = :u"), {"ss": session_str, "u": data.username})
+            db.commit()
+
+        daftarkan_listener_user(data.username, client, user_session["bot_target"])
+        user_session["phone_code_hash"] = None
+        return {"status": "success", "message": f"Verifikasi OTP [{data.username}] Berhasil & Sesi Tersimpan Permanen di Supabase!"}
+    except Exception as e:
+        return {"status": "error", "message": f"Verifikasi gagal: {str(e)}"}
