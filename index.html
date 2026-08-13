@@ -292,13 +292,16 @@
                     body: JSON.stringify({username: u, password: p})
                 });
                 const data = await res.json();
+                // Menampilkan pesan dari backend secara spesifik
                 if(data.status === 'success') {
                     alert("✅ " + data.message);
                     switchAuth('login');
                 } else {
-                    alert("❌ " + data.message);
+                    alert("❌ " + (data.message || "Gagal mendaftar."));
                 }
-            } catch(e) { alert("Gagal mendaftar."); }
+            } catch(e) { 
+                alert("❌ Terjadi kesalahan koneksi ke server."); 
+            }
         }
 
         function logout() {
