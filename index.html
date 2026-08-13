@@ -208,12 +208,29 @@
         </div>
 
         <div class="card">
-            <h3>⚙️ Manajemen Antrean Cookie & Laporan</h3>
-            <label>Masukkan daftar cookie (1 baris = 1 akun):</label>
+        <!-- PENGATURAN COOKIE, DELAY, & LAPORAN -->
+        <div class="card">
+            <h3>⚙️ Konfigurasi Automation & Cookie</h3>
+            
+            <div class="grid-2">
+                <div>
+                    <label>Delay Antar Aksi (Detik)</label>
+                    <input type="number" step="0.1" id="delay_aksi" value="1.5">
+                </div>
+                <div>
+                    <label>Delay Repeat /mission (Detik)</label>
+                    <input type="number" step="0.1" id="delay_repeat" value="3.0">
+                </div>
+            </div>
+
+            <label style="margin-top: 10px;">Daftar Cookie (1 baris = 1 akun):</label>
             <textarea id="list_cookie" rows="5" placeholder="Paste cookie di sini..."></textarea>
+            
             <div class="flex-row" style="margin-top: 10px;">
-                <button class="btn-dark" onclick="simpanPengaturan()">💾 Simpan Antrean Cookie</button>
-                <button class="btn-excel" onclick="downloadExcelReport()">📊 Download Laporan Excel</button>
+                <button class="btn-dark" onclick="simpanPengaturan()">💾 Simpan Semua Pengaturan</button>
+                <input type="file" id="file_cookie_input" style="display: none;" accept=".txt" onchange="importCookieFile(event)">
+                <button class="btn-info" onclick="document.getElementById('file_cookie_input').click()">📁 Impor .txt</button>
+                <button class="btn-excel" onclick="downloadExcelReport()">📊 Download Excel</button>
             </div>
         </div>
 
@@ -304,6 +321,22 @@
             }
         }
 
+
+        // Fungsi untuk membaca file .txt dan memasukkannya ke textarea antrean cookie
+        function importCookieFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const kontenFile = e.target.result;
+                // Masukkan isi file ke dalam textarea list_cookie
+                document.getElementById('list_cookie').value = kontenFile;
+                alert("📁 Berhasil memuat daftar cookie dari file .txt!");
+            };
+            reader.readAsText(file);
+        }
+
         function logout() {
             currentUser = null; userRole = null;
             document.getElementById('dashboard_section').style.display = 'none';
@@ -383,7 +416,11 @@
                 const config = await res.json();
                 if(config.api_id) document.getElementById('api_id').value = config.api_id;
                 if(config.api_hash) document.getElementById('api_hash').value = config.api_hash;
+                if(config.nomor_hp) document.getElementById('nomor_hp').value = config.nomor_hp;
                 if(config.bot_target) document.getElementById('bot_target').value = config.bot_target;
+                // Memuat nilai delay dari server
+                if(config.delay_aksi) document.getElementById('delay_aksi').value = config.delay_aksi;
+                if(config.delay_repeat) document.getElementById('delay_repeat').value = config.delay_repeat;
                 if(config.list_cookie) document.getElementById('list_cookie').value = config.list_cookie;
             } catch(e) {}
         }
@@ -392,15 +429,20 @@
             const data = {
                 api_id: parseInt(document.getElementById('api_id').value),
                 api_hash: document.getElementById('api_hash').value,
-                nomor_hp: document.getElementById('nomor_hp').value,
-                bot_target: document.getElementById('bot_target').value,
-                delay_aksi: 1.5, delay_repeat: 3.0,
+                nomor_hp: document.getElementById('nomor_hp').value.trim(),
+                bot_target: document.getElementById('bot_target').value.trim(),
+                // Menambahkan delay yang disesuaikan user
+                delay_aksi: parseFloat(document.getElementById('delay_aksi').value),
+                delay_repeat: parseFloat(document.getElementById('delay_repeat').value),
                 list_cookie: document.getElementById('list_cookie').value
             };
+            
             await fetch(`${baseUrl}/api/simpan_pengaturan`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify(data)
             });
-            alert("✅ Antrean Cookie disimpan!");
+            alert("✅ Konfigurasi delay & cookie disimpan!");
         }
 
         async function hubungkanTelegramUser() {
