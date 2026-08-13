@@ -182,7 +182,7 @@
                 </table>
             </div>
         </div>
-        
+
         <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
             <span>Status Koneksi Telegram Anda:</span>
             <span id="status_koneksi" class="status-badge">TERPUTUS</span>
@@ -255,11 +255,31 @@
             <div id="terminal_log" class="terminal-box">Menunggu sistem...</div>
         </div>
     </div>
-
     <script>
-        const baseUrl = window.location.origin;
+ const baseUrl = window.location.origin;
         let currentUser = null;
         let userRole = null;
+
+        // --- CEK SESI LOGIN SAAT HALAMAN DIREFRESH ---
+        window.onload = function() {
+            const savedUser = localStorage.getItem('rpa_current_user');
+            const savedRole = localStorage.getItem('rpa_user_role');
+            const savedSaldo = localStorage.getItem('rpa_user_saldo');
+
+            if(savedUser && savedRole) {
+                currentUser = savedUser;
+                userRole = savedRole;
+                document.getElementById('auth_section').style.display = 'none';
+                document.getElementById('dashboard_section').style.display = 'block';
+                document.getElementById('user_info_label').innerText = `👤 ${currentUser} (${userRole.toUpperCase()}) | Saldo: Rp ${parseFloat(savedSaldo || 0).toLocaleString()}`;
+                
+                if(userRole === 'owner') {
+                    document.getElementById('owner_panel').style.display = 'block';
+                    loadAdminUsers();
+                }
+                loadConfig();
+            }
+        };
 
         function switchAuth(target) {
             if(target === 'register') {
@@ -286,59 +306,8 @@
                 if(data.status === 'success') {
                     currentUser = data.username;
                     userRole = data.role;
-                    document.getElementById('auth_section').style.display = 'none';
-                    document.getElementById('dashboard_section').style.display = 'block';
-                    document.getElementById('user_info_label').innerText = `👤 ${currentUser} (${userRole.toUpperCase()}) | Saldo: Rp ${data.saldo.toLocaleString()}`;
                     
-                    if(userRole === 'owner') {
-                        document.getElementById('owner_panel').style.display = 'block';
-                        loadAdminUsers();
-                    }
-                    loadConfig();
-                } else {
-                    alert("❌ " + data.message);
-                }
-            } catch(e) { alert("Gagal terhubung ke server."); }
-        }
-
-        // --- CEK SESI LOGIN SAAT HALAMAN DIREFRESH ---
-        window.onload = function() {
-            const savedUser = localStorage.getItem('rpa_current_user');
-            const savedRole = localStorage.getItem('rpa_user_role');
-            const savedSaldo = localStorage.getItem('rpa_user_saldo');
-
-            if(savedUser && savedRole) {
-                currentUser = savedUser;
-                userRole = savedRole;
-                document.getElementById('auth_section').style.display = 'none';
-                document.getElementById('dashboard_section').style.display = 'block';
-                document.getElementById('user_info_label').innerText = `👤 ${currentUser} (${userRole.toUpperCase()}) | Saldo: Rp ${parseFloat(savedSaldo || 0).toLocaleString()}`;
-                
-                if(userRole === 'owner') {
-                    document.getElementById('owner_panel').style.display = 'block';
-                    loadAdminUsers();
-                }
-                loadConfig();
-            }
-        };
-
-        async function prosesLogin() {
-            const u = document.getElementById('login_user').value.trim();
-            const p = document.getElementById('login_pass').value.trim();
-            if(!u || !p) { alert("Isi username dan password!"); return; }
-
-            try {
-                const res = await fetch(`${baseUrl}/api/login`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username: u, password: p})
-                });
-                const data = await res.json();
-                if(data.status === 'success') {
-                    currentUser = data.username;
-                    userRole = data.role;
-                    
-                    // SIMPAN KE LOCALSTORAGE AGAR TIDAK HILANG SAAT REFRESH
+                    // SIMPAN SESI KE LOCALSTORAGE AGAR TIDAK HILANG SAAT REFRESH
                     localStorage.setItem('rpa_current_user', currentUser);
                     localStorage.setItem('rpa_user_role', userRole);
                     localStorage.setItem('rpa_user_saldo', data.saldo);
@@ -356,17 +325,6 @@
                     alert("❌ " + data.message);
                 }
             } catch(e) { alert("Gagal terhubung ke server."); }
-        }
-
-        function logout() {
-            currentUser = null; userRole = null;
-            // HAPUS LOCALSTORAGE SAAT LOGOUT
-            localStorage.removeItem('rpa_current_user');
-            localStorage.removeItem('rpa_user_role');
-            localStorage.removeItem('rpa_user_saldo');
-
-            document.getElementById('dashboard_section').style.display = 'none';
-            document.getElementById('auth_section').style.display = 'block';
         }
 
         async function prosesRegister() {
@@ -392,6 +350,18 @@
             }
         }
 
+        function logout() {
+            currentUser = null; userRole = null;
+            
+            // HAPUS LOCALSTORAGE SAAT LOGOUT
+            localStorage.removeItem('rpa_current_user');
+            localStorage.removeItem('rpa_user_role');
+            localStorage.removeItem('rpa_user_saldo');
+
+            document.getElementById('dashboard_section').style.display = 'none';
+            document.getElementById('auth_section').style.display = 'block';
+        }
+
         function importCookieFile(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -401,12 +371,6 @@
                 alert("📁 Berhasil memuat daftar cookie dari file .txt!");
             };
             reader.readAsText(file);
-        }
-
-        function logout() {
-            currentUser = null; userRole = null;
-            document.getElementById('dashboard_section').style.display = 'none';
-            document.getElementById('auth_section').style.display = 'block';
         }
 
         async function loadAdminUsers() {
@@ -578,20 +542,19 @@
         }
         function bersihkanLog() { document.getElementById('terminal_log').innerText = ""; }
 
-        // Mengganti polling HTTP dengan WebSocket untuk Live Logs yang ringan
-const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsUrl = `${wsProtocol}//${window.location.host}/ws/logs`;
-const logSocket = new WebSocket(wsUrl);
+        // --- WEBSOCKET UNTUK LIVE LOGS YANG RINGAN ---
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/logs`;
+        const logSocket = new WebSocket(wsUrl);
 
-logSocket.onmessage = function(event) {
-    const term = document.getElementById('terminal_log');
-    if (term) {
-        term.innerText = event.data;
-        term.scrollTop = term.scrollHeight;
-    }
-};
+        logSocket.onmessage = function(event) {
+            const term = document.getElementById('terminal_log');
+            if (term) {
+                term.innerText = event.data;
+                term.scrollTop = term.scrollHeight;
+            }
+        };
 
-logSocket.onclose = function() {
-    console.log("WebSocket log terputus. Mencoba menghubungkan ulang...");
-    // Opsional: Tambahkan logika reconnect otomatis di sini jika diperlukan
-};
+        logSocket.onclose = function() {
+            console.log("WebSocket log terputus.");
+        };
