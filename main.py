@@ -3,6 +3,8 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from telethon import TelegramClient, events
+from fastapi.responses
+import HTMLResponse
 import asyncio
 import json
 import os
@@ -423,3 +425,10 @@ async def stop_claim():
     sedang_proses_siklus = False
     print("\n⏹️ AUTOMATION STOPPED (Runner dihentikan)")
     return {"status": "success", "message": "Automation berhasil dihentikan."}
+
+@app.get("/", response_class=HTMLResponse)
+async def baca_index():
+    if os.path.exists("index.html"):
+        with open("index.html", "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h3>File index.html belum di-upload ke server.</h3>"
