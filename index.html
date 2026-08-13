@@ -236,9 +236,9 @@
     </div>
 
     <script>
-        const baseUrl = "";
-        let currentUser = null;
-        let userRole = null;
+    const baseUrl = window.location.origin; // Otomatis mendeteksi domain aktif (Railway/Render/Localhost)
+    let currentUser = null;
+    let userRole = null;
 
         function switchAuth(target) {
             if(target === 'register') {
