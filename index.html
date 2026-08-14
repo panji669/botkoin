@@ -545,6 +545,26 @@
         }
         function bersihkanLog() { document.getElementById('terminal_log').innerText = ""; }
 
+    // Fitur Auto-Update Tampilan Saldo secara Real-Time
+        async function updateSaldoUI() {
+            if(!currentUser) return;
+            try {
+                const res = await fetch(`${baseUrl}/api/user/saldo?username=${encodeURIComponent(currentUser)}`);
+                const data = await res.json();
+                if(data.status === 'success') {
+                    // Update tampilan di pojok kanan atas
+                    const formatSaldo = data.saldo.toLocaleString();
+                    document.getElementById('user_info_label').innerText = `👤 ${currentUser} (${userRole.toUpperCase()}) | Saldo: Rp ${formatSaldo}`;
+                    localStorage.setItem('rpa_user_saldo', data.saldo); // Simpan pembaruan ke memori
+                }
+            } catch(e) {
+                console.log("Gagal mengupdate saldo otomatis.");
+            }
+        }
+
+        // Panggil fungsi pembaruan saldo setiap 5 detik berjalan di latar belakang!
+        setInterval(updateSaldoUI, 5000);
+
     // --- LIVE LOGS ENGINE DENGAN WEBSOCKET & FALLBACK POLLING ---
     function initLiveLogs() {
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
