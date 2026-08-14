@@ -593,6 +593,15 @@ async def start_claim_user(data: dict):
     asyncio.create_task(jalankan_siklus_misi(username, user_session["bot_target"]))
     return {"status": "success", "message": f"Automation [{username}] berhasil dijalankan."}
 
+@app.get("/api/user/saldo")
+async def get_user_saldo(username: str):
+    with SessionLocal() as db:
+        usr = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": username}).fetchone()
+        if usr:
+            return {"status": "success", "saldo": usr.saldo}
+    return {"status": "error", "message": "User tidak ditemukan"}
+    
+
 @app.post("/api/stop_claim_user")
 async def stop_claim_user(data: dict):
     username = data.get("username")
