@@ -13,7 +13,6 @@ import openpyxl
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-
 app = FastAPI()
 
 app.add_middleware(
@@ -23,7 +22,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # ==========================================
 # 0. SISTEM BUFFER LIVE LOG TERMINAL & WEBSOCKET
@@ -51,7 +49,6 @@ class LogBuffer(io.StringIO):
 log_stream = LogBuffer()
 sys.stdout = log_stream
 
-# Simpan daftar koneksi WebSocket yang aktif
 active_websockets = []
 
 @app.websocket("/ws/logs")
@@ -59,7 +56,6 @@ async def websocket_logs(websocket: WebSocket):
     await websocket.accept()
     active_websockets.append(websocket)
     try:
-        # Kirim log awal seketika tersambung
         await websocket.send_text(log_stream.get_logs())
         while True:
             current_logs = log_stream.get_logs()
@@ -73,12 +69,9 @@ async def websocket_logs(websocket: WebSocket):
         if websocket in active_websockets:
             active_websockets.remove(websocket)
 
-            
 def baca_konfigurasi():
-    # Helper untuk kompatibilitas fungsi lama yang membaca konfigurasi
     try:
         with SessionLocal() as db:
-            # Mengambil data setting baris pertama atau sesuaikan kebutuhan
             res = db.execute(text("SELECT * FROM settings LIMIT 1")).fetchone()
             if not res:
                 return {}
@@ -95,7 +88,6 @@ def baca_konfigurasi():
         print(f"Error baca_konfigurasi: {e}")
         return {}
 
-# Konfigurasi Database Supabase dari Environment Variables Railway
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL belum diatur di Environment Variables Railway!")
@@ -103,37 +95,8 @@ if not DATABASE_URL:
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 
-EXCEL_REPORT_FILE = 'laporan_klaim_koin_enterprise.xlsx'
-
 # ==========================================
-# 0. SISTEM BUFFER LIVE LOG TERMINAL
-# ==========================================
-class LogBuffer(io.StringIO):
-    def __init__(self):
-        super().__init__()
-        self.log_content = []
-
-    def write(self, s):
-        sys.__stdout__.write(s)
-        sys.__stdout__.flush()
-        if s.strip():
-            formatted_s = s if s.endswith('\n') else s + '\n'
-            self.log_content.append(formatted_s)
-            if len(self.log_content) > 150: 
-                self.log_content.pop(0)
-
-    def flush(self):
-        pass
-
-    def get_logs(self):
-        return "".join(self.log_content)
-
-log_stream = LogBuffer()
-sys.stdout = log_stream
-
-
-# ==========================================
-# 1. MANAJEMEN SUPABASE DB & EXCEL
+# 1. MANAJEMEN SUPABASE DB & EXCEL PER USER
 # ==========================================
 def inisialisasi_tabel_db():
     with SessionLocal() as db:
@@ -155,13 +118,64 @@ def inisialisasi_tabel_db():
                 bot_target TEXT,
                 delay_aksi FLOAT DEFAULT 1.5,
                 delay_repeat FLOAT DEFAULT 3.0,
-                list_cookie TEXT
+                list_cookie TEXT,
+                session_string TEXT
             );
         """))
         db.commit()
 
-# Jalankan inisialisasi tabel saat startup
 inisialisasi_tabel_db()
+
+def get_user_excel_filename(username: str) -> str:
+    safe_username = "".join([c for c in username if c.isalnum() or c in ('_', '-')])
+    return f'laporan_klaim_{safe_username}.xlsx'
+
+def inisialisasi_excel_jika_belum_ada(username: str):
+    try:
+        filename = get_user_excel_filename(username)
+        if not os.path.exists(filename):
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Log Klaim Sukses"
+            headers = ["Username", "Raw Cookie", "Jumlah Koin"]
+            header_fill = openpyxl.styles.PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+            header_font = openpyxl.styles.Font(bold=True, size=11)
+            for col_idx, h in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col_idx, value=h)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+                cell.border = openpyxl.styles.Border(left=openpyxl.styles.Side(style='thin'), right=openpyxl.styles.Side(style='thin'), top=openpyxl.styles.Side(style='thin'), bottom=openpyxl.styles.Side(style='thin'))
+            ws.column_dimensions['A'].width = 20
+            ws.column_dimensions['B'].width = 50
+            ws.column_dimensions['C'].width = 15
+            wb.save(filename)
+    except Exception as e:
+        print(f"\n❌ Gagal membuat Excel untuk [{username}]: {e}")
+
+def catat_sukses_claim_ke_excel(owner_username, target_account, cookie_str):
+    try:
+        filename = get_user_excel_filename(owner_username)
+        inisialisasi_excel_jika_belum_ada(owner_username)
+        wb = openpyxl.load_workbook(filename)
+        ws = wb.active
+        
+        for row in range(2, ws.max_row + 1):
+            existing_cookie = ws.cell(row=row, column=2).value
+            if existing_cookie and cookie_str and str(existing_cookie).strip() == str(cookie_str).strip():
+                return False
+
+        next_row = ws.max_row + 1
+        border_thin = openpyxl.styles.Border(left=openpyxl.styles.Side(style='thin'), right=openpyxl.styles.Side(style='thin'), top=openpyxl.styles.Side(style='thin'), bottom=openpyxl.styles.Side(style='thin'))
+        
+        ws.cell(row=next_row, column=1, value=target_account).border = border_thin
+        ws.cell(row=next_row, column=2, value=cookie_str).border = border_thin
+        ws.cell(row=next_row, column=3, value=3000).border = border_thin
+        wb.save(filename)
+        return True
+    except Exception as e:
+        print(f"\n❌ Gagal mencatat ke Excel: {e}")
+        return False
 
 def ambil_dan_hapus_cookie(username):
     try:
@@ -185,54 +199,6 @@ def ambil_dan_hapus_cookie(username):
         print(f"\n❌ Error ambil cookie [{username}]: {e}")
         return None
 
-def inisialisasi_excel_jika_belum_ada():
-    try:
-        if not os.path.exists(EXCEL_REPORT_FILE):
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "Log Klaim Sukses"
-            headers = ["Username", "Raw Cookie", "Jumlah Koin"]
-            header_fill = openpyxl.styles.PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
-            header_font = openpyxl.styles.Font(bold=True, size=11)
-            for col_idx, h in enumerate(headers, 1):
-                cell = ws.cell(row=1, column=col_idx, value=h)
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
-                cell.border = openpyxl.styles.Border(left=openpyxl.styles.Side(style='thin'), right=openpyxl.styles.Side(style='thin'), top=openpyxl.styles.Side(style='thin'), bottom=openpyxl.styles.Side(style='thin'))
-            ws.column_dimensions['A'].width = 20
-            ws.column_dimensions['B'].width = 50
-            ws.column_dimensions['C'].width = 15
-            wb.save(EXCEL_REPORT_FILE)
-    except Exception as e:
-        print(f"\n❌ Gagal membuat Excel: {e}")
-
-inisialisasi_excel_jika_belum_ada()
-
-def catat_sukses_claim_ke_excel(username, cookie_str):
-    try:
-        inisialisasi_excel_jika_belum_ada()
-        wb = openpyxl.load_workbook(EXCEL_REPORT_FILE)
-        ws = wb.active
-        
-        for row in range(2, ws.max_row + 1):
-            existing_cookie = ws.cell(row=row, column=2).value
-            if existing_cookie and cookie_str and str(existing_cookie).strip() == str(cookie_str).strip():
-                return False
-
-        next_row = ws.max_row + 1
-        border_thin = openpyxl.styles.Border(left=openpyxl.styles.Side(style='thin'), right=openpyxl.styles.Side(style='thin'), top=openpyxl.styles.Side(style='thin'), bottom=openpyxl.styles.Side(style='thin'))
-        
-        ws.cell(row=next_row, column=1, value=username).border = border_thin
-        ws.cell(row=next_row, column=2, value=cookie_str).border = border_thin
-        ws.cell(row=next_row, column=3, value=3000).border = border_thin
-        wb.save(EXCEL_REPORT_FILE)
-        return True
-    except Exception as e:
-        print(f"\n❌ Gagal mencatat ke Excel: {e}")
-        return False
-
-
 # ==========================================
 # 2. MULTI-USER TELEGRAM SESSIONS ENGINE
 # ==========================================
@@ -243,14 +209,11 @@ async def jalankan_siklus_misi(username, bot_target):
     if not user_session or not user_session.get("auto_claim"):
         return
         
-    # Cek apakah sedang dalam proses pengiriman agar tidak nabrak ganda
     if user_session.get("lock_mission", False):
         return
     user_session["lock_mission"] = True
 
     try:
-        config = baca_konfigurasi()
-        # Ambil delay dari database user yang bersangkutan
         with SessionLocal() as db:
             st = db.execute(text("SELECT delay_repeat FROM settings WHERE username = :u"), {"u": username}).fetchone()
             delay_repeat = st.delay_repeat if st and st.delay_repeat else 3.0
@@ -274,7 +237,6 @@ async def jalankan_siklus_misi(username, bot_target):
     except Exception as e:
         print(f"\n❌ Gagal kirim /mission [{username}]: {e}")
     finally:
-        # Buka kembali kunci setelah selesai
         user_session["lock_mission"] = False
 
 def daftarkan_listener_user(username, client, bot_target):
@@ -348,7 +310,13 @@ def daftarkan_listener_user(username, client, bot_target):
                         akun_target = temp.split(" ")[0].split("|")[0].strip()
 
                     cookie_user = getattr(client, '_cookie_sedang_diproses', 'N/A')
-                    berhasil_catat = catat_sukses_claim_ke_excel(akun_target if akun_target != "Unknown" else "Akun_Processed", cookie_user)
+                    
+                    # Mencatat klaim sukses ke file Excel milik user ini sendiri
+                    berhasil_catat = catat_sukses_claim_ke_excel(
+                        username, 
+                        akun_target if akun_target != "Unknown" else "Akun_Processed", 
+                        cookie_user
+                    )
                     
                     if berhasil_catat:
                         with SessionLocal() as db:
@@ -363,7 +331,6 @@ def daftarkan_listener_user(username, client, bot_target):
                     print(f"⚠️ Error parsing [{username}]: {parse_err}")
                 
                 await jalankan_siklus_misi(username, bot_target)
-
 
 # ==========================================
 # 3. ENDPOINTS API REST
@@ -415,7 +382,6 @@ async def baca_index():
 @app.post("/api/login")
 async def login_user(data: UserAuth):
     with SessionLocal() as db:
-        # Auto insert owner default jika tabel kosong
         owner_check = db.execute(text("SELECT username FROM users WHERE username = 'owner'")).fetchone()
         if not owner_check:
             db.execute(text("INSERT INTO users (username, password, role, status, saldo) VALUES ('owner', 'ownerpassword', 'owner', 'aktif', 100000.0) ON CONFLICT DO NOTHING"))
@@ -512,10 +478,11 @@ async def get_config(username: str):
         }
 
 @app.get("/api/download_excel")
-async def download_excel():
-    inisialisasi_excel_jika_belum_ada()
-    if os.path.exists(EXCEL_REPORT_FILE):
-        return FileResponse(EXCEL_REPORT_FILE, filename='laporan_klaim_koin_enterprise.xlsx')
+async def download_excel(username: str):
+    inisialisasi_excel_jika_belum_ada(username)
+    filename = get_user_excel_filename(username)
+    if os.path.exists(filename):
+        return FileResponse(filename, filename=f'laporan_klaim_{username}.xlsx')
     return {"status": "error", "message": "File belum tersedia."}
 
 @app.post("/api/simpan_pengaturan")
@@ -542,96 +509,13 @@ async def simpan_pengaturan(settings: EngineSettings):
 @app.post("/api/hubungkan_user")
 async def hubungkan_user_telegram(data: ConnectTelegram):
     try:
-        session_name = f"sesi_{data.username}"
-        if data.username in active_clients:
-            try:
-                if active_clients[data.username]["client"].is_connected():
-                    await active_clients[data.username]["client"].disconnect()
-            except:
-                pass
-
-        client = TelegramClient(session_name, int(data.api_id), str(data.api_hash))
-        await client.connect()
-        
-        if not await client.is_user_authorized():
-            res_otp = await client.send_code_request(data.nomor_hp)
-            active_clients[data.username] = {
-                "client": client,
-                "phone_code_hash": res_otp.phone_code_hash,
-                "auto_claim": False,
-                "bot_target": data.bot_target
-            }
-            return {"status": "otp_required", "message": f"OTP terkirim ke Telegram [{data.username}]."}
-
-        daftarkan_listener_user(data.username, client, data.bot_target)
-        active_clients[data.username] = {
-            "client": client,
-            "phone_code_hash": None,
-            "auto_claim": False,
-            "bot_target": data.bot_target
-        }
-        return {"status": "connected", "message": f"Telegram [{data.username}] berhasil terhubung!"}
-    except Exception as e:
-        return {"status": "error", "message": f"Gagal koneksi: {str(e)}"}
-
-@app.post("/api/verifikasi_otp_user")
-async def verifikasi_otp_user(data: VerifyOTP):
-    user_session = active_clients.get(data.username)
-    if not user_session:
-        return {"status": "error", "message": "Sesi tidak ditemukan. Hubungkan ulang."}
-    
-    with SessionLocal() as db:
-        st = db.execute(text("SELECT nomor_hp FROM settings WHERE username = :u"), {"u": data.username}).fetchone()
-        nomor_hp = st.nomor_hp if st else ""
-
-    try:
-        client = user_session["client"]
-        phone_hash = user_session["phone_code_hash"]
-        
-        await client.sign_in(phone=nomor_hp, code=data.kode_otp.strip(), phone_code_hash=phone_hash)
-        daftarkan_listener_user(data.username, client, user_session["bot_target"])
-        user_session["phone_code_hash"] = None
-        return {"status": "success", "message": f"Verifikasi OTP [{data.username}] Berhasil!"}
-    except Exception as e:
-        return {"status": "error", "message": f"Verifikasi gagal: {str(e)}"}
-
-@app.post("/api/start_claim_user")
-async def start_claim_user(data: dict):
-    username = data.get("username")
-    user_session = active_clients.get(username)
-    if not user_session or not user_session["client"].is_connected():
-        return {"status": "error", "message": "Telegram belum terhubung untuk user ini!"}
-        
-    with SessionLocal() as db:
-        usr = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": username}).fetchone()
-        if not usr or usr.saldo <= 0:
-            return {"status": "error", "message": "Saldo Anda habis! Silakan lakukan pengisian saldo (top-up) ke Admin."}
-
-    user_session["auto_claim"] = True
-    asyncio.create_task(jalankan_siklus_misi(username, user_session["bot_target"]))
-    return {"status": "success", "message": f"Automation [{username}] berhasil dijalankan."}
-
-@app.post("/api/stop_claim_user")
-async def stop_claim_user(data: dict):
-    username = data.get("username")
-    if username in active_clients:
-        active_clients[username]["auto_claim"] = False
-    return {"status": "success", "message": f"Automation [{username}] dihentikan."}
-
-# Saat menghubungkan atau memuat sesi user:
-@app.post("/api/hubungkan_user")
-async def hubungkan_user_telegram(data: ConnectTelegram):
-    try:
-        # Ambil session_string yang sudah pernah tersimpan di Supabase sebelumnya (jika ada)
         with SessionLocal() as db:
             st = db.execute(text("SELECT session_string FROM settings WHERE username = :u"), {"u": data.username}).fetchone()
             saved_string = st.session_string if st and st.session_string else ""
 
-        # Gunakan StringSession dari Telethon
         client = TelegramClient(StringSession(saved_string), int(data.api_id), str(data.api_hash))
         await client.connect()
         
-        # Jika belum authorized atau string session kosong/expired
         if not await client.is_user_authorized():
             res_otp = await client.send_code_request(data.nomor_hp)
             active_clients[data.username] = {
@@ -642,7 +526,6 @@ async def hubungkan_user_telegram(data: ConnectTelegram):
             }
             return {"status": "otp_required", "message": f"OTP terkirim ke Telegram [{data.username}]."}
 
-        # Jika sudah tersambung otomatis lewat string session tersimpan
         daftarkan_listener_user(data.username, client, data.bot_target)
         active_clients[data.username] = {
             "client": client,
@@ -670,10 +553,8 @@ async def verifikasi_otp_user(data: VerifyOTP):
         
         await client.sign_in(phone=nomor_hp, code=data.kode_otp.strip(), phone_code_hash=phone_hash)
         
-        # Ambil string sesi rahasia dari Telethon
         session_str = client.session.save()
 
-        # Simpan string sesi permanen ke database Supabase milik user tersebut
         with SessionLocal() as db:
             db.execute(text("UPDATE settings SET session_string = :ss WHERE username = :u"), {"ss": session_str, "u": data.username})
             db.commit()
@@ -684,20 +565,25 @@ async def verifikasi_otp_user(data: VerifyOTP):
     except Exception as e:
         return {"status": "error", "message": f"Verifikasi gagal: {str(e)}"}
 
-        # Simpan daftar koneksi WebSocket yang aktif
-active_websockets = []
+@app.post("/api/start_claim_user")
+async def start_claim_user(data: dict):
+    username = data.get("username")
+    user_session = active_clients.get(username)
+    if not user_session or not user_session["client"].is_connected():
+        return {"status": "error", "message": "Telegram belum terhubung untuk user ini!"}
+        
+    with SessionLocal() as db:
+        usr = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": username}).fetchone()
+        if not usr or usr.saldo <= 0:
+            return {"status": "error", "message": "Saldo Anda habis! Silakan lakukan pengisian saldo (top-up) ke Admin."}
 
-@app.websocket("/ws/logs")
-async def websocket_logs(websocket: WebSocket):
-    await websocket.accept()
-    active_websockets.append(websocket)
-    try:
-        while True:
-            current_logs = log_stream.get_logs()
-            await websocket.send_text(current_logs)
-            await asyncio.sleep(0.5)
-    except WebSocketDisconnect:
-        active_websockets.remove(websocket)
-    except Exception:
-        if websocket in active_websockets:
-            active_websockets.remove(websocket)
+    user_session["auto_claim"] = True
+    asyncio.create_task(jalankan_siklus_misi(username, user_session["bot_target"]))
+    return {"status": "success", "message": f"Automation [{username}] berhasil dijalankan."}
+
+@app.post("/api/stop_claim_user")
+async def stop_claim_user(data: dict):
+    username = data.get("username")
+    if username in active_clients:
+        active_clients[username]["auto_claim"] = False
+    return {"status": "success", "message": f"Automation [{username}] dihentikan."}
