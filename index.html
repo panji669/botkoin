@@ -374,10 +374,17 @@
 
         async function loadAdminUsers() {
             if(!currentUser || userRole !== 'owner') return; // Validasi keamanan ganda
+            
+            // Berikan efek visual bahwa tombol sedang ditekan/memuat data
+            const refreshBtn = document.querySelector("button[onclick='loadAdminUsers()']");
+            if(refreshBtn) refreshBtn.innerText = "⏳ Memuat data...";
+
             try {
                 const res = await fetch(`${baseUrl}/api/admin/users?username=${encodeURIComponent(currentUser)}`);
                 const data = await res.json();
                 const tbody = document.getElementById('users_table_body');
+                
+                // Kosongkan tabel sejenak untuk memberi efek refresh yang nyata
                 tbody.innerHTML = '';
                 
                 for(let [uname, info] of Object.entries(data.users)) {
@@ -401,24 +408,12 @@
                         </tr>
                     `;
                 }
-            } catch(e) { console.log("Gagal memuat data user admin"); }
-        }
-        async function updateUser(targetUname) {
-            const status = document.getElementById(`status_${targetUname}`).value;
-            const tambahSaldo = parseFloat(document.getElementById(`add_saldo_${targetUname}`).value) || 0;
-
-            try {
-                const res = await fetch(`${baseUrl}/api/admin/manage?admin_user=${currentUser}`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({target_username: targetUname, status: status, tambah_saldo: tambahSaldo})
-                });
-                const data = await res.json();
-                if(data.status === 'success') {
-                    alert("✅ " + data.message);
-                    loadAdminUsers();
-                } else { alert("❌ " + data.message); }
-            } catch(e) { alert("Gagal mengupdate user."); }
+            } catch(e) { 
+                console.log("Gagal memuat data user admin"); 
+            } finally {
+                // Kembalikan nama tombol seperti semula
+                if(refreshBtn) refreshBtn.innerText = "🔄 Refresh List Akun";
+            }
         }
 
         async function deleteUser(targetUname) {
