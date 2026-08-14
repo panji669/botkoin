@@ -303,6 +303,7 @@ def daftarkan_listener_user(username, client, bot_target):
                     teks_gabungan = teks_masuk.replace('\n', ' | ')
 
                 print(f"\n🎯 [{username}] [HASIL AKHIR]: {teks_gabungan}")
+                
                 try:
                     akun_target = "Unknown"
                     if "Login:" in teks_gabungan:
@@ -321,9 +322,7 @@ def daftarkan_listener_user(username, client, bot_target):
                             print(f"💰 [{username}] Saldo terpotong Rp 200 (Sisa: Rp {new_saldo}) untuk proses akun: {akun_target}")
                     
                     # --- 2. FILTER REKAP EXCEL (HANYA UNTUK 3000 KOIN) ---
-                    # Mengecek apakah teks balasan bot mengandung angka "3000" atau "3.000"
                     if "3000" in teks_gabungan or "3.000" in teks_gabungan:
-                        # Mencatat klaim sukses ke file Excel milik user ini sendiri
                         berhasil_catat = catat_sukses_claim_ke_excel(
                             username, 
                             akun_target if akun_target != "Unknown" else "Akun_Processed", 
@@ -336,6 +335,10 @@ def daftarkan_listener_user(username, client, bot_target):
                         
                 except Exception as parse_err:
                     print(f"⚠️ Error parsing [{username}]: {parse_err}")
+                
+                # --- INI ADALAH KUNCI AGAR BOT MENGULANG (REPEAT) MISI SELANJUTNYA ---
+                # Baris ini harus sejajar (satu indentasi) dengan 'try' di atasnya
+                await jalankan_siklus_misi(username, bot_target)
 # ==========================================
 # 3. ENDPOINTS API REST
 # ==========================================
