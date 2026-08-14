@@ -161,14 +161,12 @@
         </header>
 
         <!-- PANEL OWNER -->
-        <!-- PANEL OWNER -->
         <div id="owner_panel" class="card" style="display: none; border: 2px solid #38bdf8;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
                 <h3 style="color: #facc15; margin: 0; border: none; padding: 0;">👑 Panel Manajemen Admin / Owner</h3>
-                <!-- Tombol Refresh List Akun -->
                 <button class="btn-info" style="padding: 5px 12px; font-size: 0.8rem;" onclick="loadAdminUsers()">🔄 Refresh List Akun</button>
             </div>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Kelola langganan, tambah saldo, atau hapus user.</p>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Kelola langganan, tambah/kurang saldo, atau hapus user.</p>
             <div style="overflow-x: auto;">
                 <table id="users_table">
                     <thead>
@@ -257,29 +255,26 @@
     </div>
 
     <script>
-    const baseUrl = window.location.origin;
+        const baseUrl = window.location.origin;
+        let currentUser = localStorage.getItem('rpa_current_user') || null;
+        let userRole = localStorage.getItem('rpa_user_role') || null;
 
-    // Pastikan fungsi ini berada di luar (Global Scope)
-    async function prosesLogin() {
-        const u = document.getElementById('login_user').value.trim();
-        const p = document.getElementById('login_pass').value.trim();
-        if(!u || !p) { alert("Isi username dan password!"); return; }
-
-        try {
-            const res = await fetch(`${baseUrl}/api/login`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p})
-            });
-            const data = await res.json();
-            if(data.status === 'success') {
-                alert("Berhasil login!");
-                // Seterusnya...
-            } else {
-                alert("❌ " + data.message);
+        // Auto Login State Check
+        window.onload = function() {
+            if (currentUser) {
+                document.getElementById('auth_section').style.display = 'none';
+                document.getElementById('dashboard_section').style.display = 'block';
+                const savedSaldo = parseFloat(localStorage.getItem('rpa_user_saldo')) || 0;
+                document.getElementById('user_info_label').innerText = `👤 ${currentUser} (${userRole.toUpperCase()}) | Saldo: Rp ${savedSaldo.toLocaleString()}`;
+                
+                if (userRole === 'owner') {
+                    document.getElementById('owner_panel').style.display = 'block';
+                    loadAdminUsers();
+                }
+                loadConfig();
             }
-        } catch(e) { alert("Gagal terhubung ke server."); }
-    }
+        };
+
         function switchAuth(target) {
             if(target === 'register') {
                 document.getElementById('form_login').style.display = 'none';
@@ -306,7 +301,6 @@
                     currentUser = data.username;
                     userRole = data.role;
                     
-                    // SIMPAN SESI KE LOCALSTORAGE AGAR TIDAK HILANG SAAT REFRESH
                     localStorage.setItem('rpa_current_user', currentUser);
                     localStorage.setItem('rpa_user_role', userRole);
                     localStorage.setItem('rpa_user_saldo', data.saldo);
@@ -351,8 +345,6 @@
 
         function logout() {
             currentUser = null; userRole = null;
-            
-            // HAPUS LOCALSTORAGE SAAT LOGOUT
             localStorage.removeItem('rpa_current_user');
             localStorage.removeItem('rpa_user_role');
             localStorage.removeItem('rpa_user_saldo');
@@ -373,18 +365,16 @@
         }
 
         async function loadAdminUsers() {
-            if(!currentUser || userRole !== 'owner') return; // Validasi keamanan ganda
+            if(!currentUser || userRole !== 'owner') return; 
             
-            // Berikan efek visual bahwa tombol sedang ditekan/memuat data
             const refreshBtn = document.querySelector("button[onclick='loadAdminUsers()']");
             if(refreshBtn) refreshBtn.innerText = "⏳ Memuat data...";
 
             try {
-                const res = await fetch(`${baseUrl}/api/admin/users?username=${encodeURIComponent(currentUser)}`);
+                const timestamp = new Date().getTime();
+                const res = await fetch(`${baseUrl}/api/admin/users?username=${encodeURIComponent(currentUser)}&_t=${timestamp}`);
                 const data = await res.json();
                 const tbody = document.getElementById('users_table_body');
-                
-                // Kosongkan tabel sejenak untuk memberi efek refresh yang nyata
                 tbody.innerHTML = '';
                 
                 for(let [uname, info] of Object.entries(data.users)) {
@@ -401,7 +391,7 @@
                                     <option value="pending" ${info.status==='pending'?'selected':''}>Pending</option>
                                     <option value="nonaktif" ${info.status==='nonaktif'?'selected':''}>Nonaktif</option>
                                 </select>
-                                <input type="number" id="add_saldo_${uname}" placeholder="+ Saldo" style="width: 90px; display:inline-block; margin-bottom:0; padding:3px;" value="0">
+                                <input type="number" id="add_saldo_${uname}" placeholder="+/- Saldo" style="width: 90px; display:inline-block; margin-bottom:0; padding:3px;" value="0">
                                 <button class="btn-green" style="padding: 4px 8px; font-size: 0.75rem;" onclick="updateUser('${uname}')">Simpan</button>
                                 ${deleteBtn}
                             </td>
@@ -411,8 +401,34 @@
             } catch(e) { 
                 console.log("Gagal memuat data user admin"); 
             } finally {
-                // Kembalikan nama tombol seperti semula
                 if(refreshBtn) refreshBtn.innerText = "🔄 Refresh List Akun";
+            }
+        }
+
+        async function updateUser(targetUname) {
+            const status = document.getElementById(`status_${targetUname}`).value;
+            const inputSaldoElement = document.getElementById(`add_saldo_${targetUname}`);
+            const tambahSaldo = parseFloat(inputSaldoElement.value) || 0;
+
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "⏳...";
+
+            try {
+                const res = await fetch(`${baseUrl}/api/admin/manage?admin_user=${currentUser}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({target_username: targetUname, status: status, tambah_saldo: tambahSaldo})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    alert("✅ " + data.message);
+                    inputSaldoElement.value = 0;
+                    loadAdminUsers();
+                } else { alert("❌ " + data.message); }
+            } catch(e) { alert("Gagal mengupdate user."); }
+            finally {
+                btn.innerText = originalText;
             }
         }
 
@@ -434,7 +450,7 @@
         }
 
         async function loadConfig() {
-            if(!currentUser) return; // Mencegah fetch jika user belum login
+            if(!currentUser) return;
             try {
                 const res = await fetch(`${baseUrl}/api/get_config?username=${encodeURIComponent(currentUser)}`);
                 const config = await res.json();
@@ -540,28 +556,23 @@
         }
         function bersihkanLog() { document.getElementById('terminal_log').innerText = ""; }
 
-    // Fitur Auto-Update Tampilan Saldo secara Real-Time
+        // --- REAL-TIME AUTO UPDATE SALDO ---
         async function updateSaldoUI() {
             if(!currentUser) return;
             try {
                 const res = await fetch(`${baseUrl}/api/user/saldo?username=${encodeURIComponent(currentUser)}`);
                 const data = await res.json();
                 if(data.status === 'success') {
-                    // Update tampilan di pojok kanan atas
                     const formatSaldo = data.saldo.toLocaleString();
                     document.getElementById('user_info_label').innerText = `👤 ${currentUser} (${userRole.toUpperCase()}) | Saldo: Rp ${formatSaldo}`;
-                    localStorage.setItem('rpa_user_saldo', data.saldo); // Simpan pembaruan ke memori
+                    localStorage.setItem('rpa_user_saldo', data.saldo);
                 }
-            } catch(e) {
-                console.log("Gagal mengupdate saldo otomatis.");
-            }
+            } catch(e) {}
         }
-
-        // Panggil fungsi pembaruan saldo setiap 5 detik berjalan di latar belakang!
         setInterval(updateSaldoUI, 5000);
 
-    // --- LIVE LOGS ENGINE DENGAN WEBSOCKET & FALLBACK POLLING ---
-    function initLiveLogs() {
+        // --- LIVE LOGS ENGINE DENGAN WEBSOCKET & FALLBACK POLLING ---
+        function initLiveLogs() {
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${wsProtocol}//${window.location.host}/ws/logs`;
             
@@ -569,7 +580,6 @@
             try {
                 ws = new WebSocket(wsUrl);
             } catch (err) {
-                console.log("WebSocket gagal diinisialisasi, beralih ke HTTP Polling.");
                 startHttpPolling();
                 return;
             }
@@ -583,17 +593,14 @@
             };
 
             ws.onerror = function(error) {
-                console.warn("WebSocket bermasalah, mengaktifkan mode HTTP Polling cadangan.");
                 startHttpPolling();
             };
 
             ws.onclose = function() {
-                // Coba reconnect otomatis setelah 3 detik
                 setTimeout(initLiveLogs, 3000);
             };
         }
 
-        // Mode cadangan jika WebSocket diblokir oleh jaringan/proxy Railway
         function startHttpPolling() {
             setInterval(async () => {
                 if(!currentUser) return;
@@ -609,6 +616,7 @@
             }, 1000);
         }
 
-        // Jalankan sistem log saat halaman dibuka
         initLiveLogs();
-</script>
+    </script>
+</body>
+</html>
