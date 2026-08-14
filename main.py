@@ -433,27 +433,38 @@ async def get_all_users(username: str):
 
 @app.post("/api/admin/manage")
 async def admin_manage_user(data: AdminManage, admin_user: str):
-    with SessionLocal() as db:
-        admin = db.execute(text("SELECT role FROM users WHERE username = :u"), {"u": admin_user}).fetchone()
-        if not admin or admin.role != "owner":
-            raise HTTPException(status_code=403, detail="Akses ditolak.")
-        
-        target_row = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": data.target_username}).fetchone()
-        if not target_row:
-            return {"status": "error", "message": "User tidak ditemukan."}
-        
-        # --- PERBAIKAN LOGIKA TAMBAH/KURANG SALDO ---
-        # Langsung tambahkan nilai inputnya (kalau minus otomatis mengurangi, kalau plus otomatis menambah)
-        new_saldo = target_row.saldo + data.tambah_saldo
-        
-        # Cegah agar saldo tidak menjadi angka negatif (minus)
-        if new_saldo < 0:
-            new_saldo = 0.0
+    try:
+        with SessionLocal() as db:
+            # 1. Cek izin akses admin
+            admin = db.execute(text("SELECT role FROM users WHERE username = :u"), {"u": admin_user}).fetchone()
+            if not admin or admin.role != "owner":
+                return {"status": "error", "message": "Akses ditolak. Anda bukan owner."}
             
-        db.execute(text("UPDATE users SET status = :st, saldo = :sd WHERE username = :u"), 
-                   {"st": data.status, "sd": float(new_saldo), "u": data.target_username})
-        db.commit()
-    return {"status": "success", "message": f"Data user {data.target_username} berhasil diperbarui!"}
+            # 2. Ambil data user target
+            target_row = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": data.target_username}).fetchone()
+            if not target_row:
+                return {"status": "error", "message": "User target tidak ditemukan di database."}
+            
+            # 3. Kalkulasi saldo dengan sangat aman (mencegah nilai kosong/None)
+            current_saldo = float(target_row.saldo) if target_row.saldo is not None else 0.0
+            tambah = float(data.tambah_saldo) if data.tambah_saldo is not None else 0.0
+            
+            new_saldo = current_saldo + tambah
+            
+            # Cegah saldo menjadi minus
+            if new_saldo < 0:
+                new_saldo = 0.0
+                
+            # 4. Eksekusi update ke Supabase
+            db.execute(text("UPDATE users SET status = :st, saldo = :sd WHERE username = :u"), 
+                       {"st": data.status, "sd": float(new_saldo), "u": data.target_username})
+            db.commit()
+            
+        return {"status": "success", "message": f"Data {data.target_username} sukses diperbarui! Saldo: Rp {new_saldo:,.0f}"}
+    
+    except Exception as e:
+        # Menangkap error sekecil apapun dan menampilkannya
+        return {"status": "error", "message": f"Terjadi kesalahan di server: {str(e)}"}
 
 @app.post("/api/admin/delete")
 async def admin_delete_user(data: AdminDelete, admin_user: str):
