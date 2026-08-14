@@ -442,9 +442,16 @@ async def admin_manage_user(data: AdminManage, admin_user: str):
         if not target_row:
             return {"status": "error", "message": "User tidak ditemukan."}
         
-        new_saldo = target_row.saldo + data.tambah_saldo if data.tambah_saldo > 0 else target_row.saldo
+        # --- PERBAIKAN LOGIKA TAMBAH/KURANG SALDO ---
+        # Langsung tambahkan nilai inputnya (kalau minus otomatis mengurangi, kalau plus otomatis menambah)
+        new_saldo = target_row.saldo + data.tambah_saldo
+        
+        # Cegah agar saldo tidak menjadi angka negatif (minus)
+        if new_saldo < 0:
+            new_saldo = 0.0
+            
         db.execute(text("UPDATE users SET status = :st, saldo = :sd WHERE username = :u"), 
-                   {"st": data.status, "sd": new_saldo, "u": data.target_username})
+                   {"st": data.status, "sd": float(new_saldo), "u": data.target_username})
         db.commit()
     return {"status": "success", "message": f"Data user {data.target_username} berhasil diperbarui!"}
 
