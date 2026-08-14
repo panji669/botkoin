@@ -69,25 +69,6 @@ async def websocket_logs(websocket: WebSocket):
         if websocket in active_websockets:
             active_websockets.remove(websocket)
 
-def baca_konfigurasi():
-    try:
-        with SessionLocal() as db:
-            res = db.execute(text("SELECT * FROM settings LIMIT 1")).fetchone()
-            if not res:
-                return {}
-            return {
-                "api_id": getattr(res, "api_id", 0),
-                "api_hash": getattr(res, "api_hash", ""),
-                "nomor_hp": getattr(res, "nomor_hp", ""),
-                "bot_target": getattr(res, "bot_target", ""),
-                "delay_aksi": getattr(res, "delay_aksi", 1.5),
-                "delay_repeat": getattr(res, "delay_repeat", 3.0),
-                "list_cookie": getattr(res, "list_cookie", "")
-            }
-    except Exception as e:
-        print(f"Error baca_konfigurasi: {e}")
-        return {}
-
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL belum diatur di Environment Variables Railway!")
@@ -312,16 +293,17 @@ def daftarkan_listener_user(username, client, bot_target):
 
                     cookie_user = getattr(client, '_cookie_sedang_diproses', 'N/A')
                     
-                    # --- 1. POTONG SALDO DULUAN (TIDAK PEDULI SUKSES/GAGAL/DUPLIKAT) ---
+                    # --- 1. PEMOTONGAN SALDO SELALU DILAKUKAN (TERLEPAS SUKSES/GAGAL) ---
                     with SessionLocal() as db:
                         usr_row = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": username}).fetchone()
                         if usr_row:
-                            new_saldo = max(0.0, usr_row.saldo - 200.0)
+                            current_saldo = float(usr_row.saldo) if usr_row.saldo is not None else 0.0
+                            new_saldo = max(0.0, current_saldo - 200.0)
                             db.execute(text("UPDATE users SET saldo = :s WHERE username = :u"), {"s": float(new_saldo), "u": username})
                             db.commit()
-                            print(f"💰 [{username}] Saldo terpotong Rp 200 (Sisa: Rp {new_saldo}) untuk proses akun: {akun_target}")
+                            print(f"💰 [{username}] Saldo terpotong Rp 200 (Sisa: Rp {new_saldo:,.0f}) untuk akun: {akun_target}")
                     
-                    # --- 2. FILTER REKAP EXCEL (HANYA MENCATAT YANG DAPAT 3000 KOIN) ---
+                    # --- 2. FILTER REKAP EXCEL (HANYA UNTUK 3000 KOIN) ---
                     if "3000" in teks_gabungan or "3.000" in teks_gabungan:
                         berhasil_catat = catat_sukses_claim_ke_excel(
                             username, 
@@ -338,6 +320,7 @@ def daftarkan_listener_user(username, client, bot_target):
                 
                 # --- LANJUTKAN SIKLUS KE AKUN BERIKUTNYA ---
                 await jalankan_siklus_misi(username, bot_target)
+
 # ==========================================
 # 3. ENDPOINTS API REST
 # ==========================================
@@ -435,36 +418,28 @@ async def get_all_users(username: str):
 async def admin_manage_user(data: AdminManage, admin_user: str):
     try:
         with SessionLocal() as db:
-            # 1. Cek izin akses admin
             admin = db.execute(text("SELECT role FROM users WHERE username = :u"), {"u": admin_user}).fetchone()
             if not admin or admin.role != "owner":
                 return {"status": "error", "message": "Akses ditolak. Anda bukan owner."}
             
-            # 2. Ambil data user target
             target_row = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": data.target_username}).fetchone()
             if not target_row:
-                return {"status": "error", "message": "User target tidak ditemukan di database."}
+                return {"status": "error", "message": "User target tidak ditemukan."}
             
-            # 3. Kalkulasi saldo dengan sangat aman (mencegah nilai kosong/None)
             current_saldo = float(target_row.saldo) if target_row.saldo is not None else 0.0
             tambah = float(data.tambah_saldo) if data.tambah_saldo is not None else 0.0
             
             new_saldo = current_saldo + tambah
-            
-            # Cegah saldo menjadi minus
             if new_saldo < 0:
                 new_saldo = 0.0
                 
-            # 4. Eksekusi update ke Supabase
             db.execute(text("UPDATE users SET status = :st, saldo = :sd WHERE username = :u"), 
                        {"st": data.status, "sd": float(new_saldo), "u": data.target_username})
             db.commit()
             
-        return {"status": "success", "message": f"Data {data.target_username} sukses diperbarui! Saldo: Rp {new_saldo:,.0f}"}
-    
+        return {"status": "success", "message": f"Data user {data.target_username} berhasil diperbarui!"}
     except Exception as e:
-        # Menangkap error sekecil apapun dan menampilkannya
-        return {"status": "error", "message": f"Terjadi kesalahan di server: {str(e)}"}
+        return {"status": "error", "message": f"Error server: {str(e)}"}
 
 @app.post("/api/admin/delete")
 async def admin_delete_user(data: AdminDelete, admin_user: str):
@@ -484,6 +459,14 @@ async def admin_delete_user(data: AdminDelete, admin_user: str):
 @app.get("/api/logs")
 async def get_logs():
     return {"logs": log_stream.get_logs()}
+
+@app.get("/api/user/saldo")
+async def get_user_saldo(username: str):
+    with SessionLocal() as db:
+        usr = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": username}).fetchone()
+        if usr:
+            return {"status": "success", "saldo": usr.saldo}
+    return {"status": "error", "message": "User tidak ditemukan"}
 
 @app.get("/api/get_config")
 async def get_config(username: str = None):
@@ -512,7 +495,6 @@ async def download_excel(username: str = None):
     if os.path.exists(filename):
         return FileResponse(filename, filename=f'laporan_klaim_{username}.xlsx')
     return {"status": "error", "message": "File belum tersedia."}
-
 
 @app.post("/api/simpan_pengaturan")
 async def simpan_pengaturan(settings: EngineSettings):
@@ -609,15 +591,6 @@ async def start_claim_user(data: dict):
     user_session["auto_claim"] = True
     asyncio.create_task(jalankan_siklus_misi(username, user_session["bot_target"]))
     return {"status": "success", "message": f"Automation [{username}] berhasil dijalankan."}
-
-@app.get("/api/user/saldo")
-async def get_user_saldo(username: str):
-    with SessionLocal() as db:
-        usr = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": username}).fetchone()
-        if usr:
-            return {"status": "success", "saldo": usr.saldo}
-    return {"status": "error", "message": "User tidak ditemukan"}
-    
 
 @app.post("/api/stop_claim_user")
 async def stop_claim_user(data: dict):
