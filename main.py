@@ -311,27 +311,31 @@ def daftarkan_listener_user(username, client, bot_target):
 
                     cookie_user = getattr(client, '_cookie_sedang_diproses', 'N/A')
                     
-                    # Mencatat klaim sukses ke file Excel milik user ini sendiri
-                    berhasil_catat = catat_sukses_claim_ke_excel(
-                        username, 
-                        akun_target if akun_target != "Unknown" else "Akun_Processed", 
-                        cookie_user
-                    )
+                    # --- 1. PEMOTONGAN SALDO (SELALU DILAKUKAN SETIAP PROSES AKUN) ---
+                    with SessionLocal() as db:
+                        usr_row = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": username}).fetchone()
+                        if usr_row:
+                            new_saldo = max(0.0, usr_row.saldo - 200.0)
+                            db.execute(text("UPDATE users SET saldo = :s WHERE username = :u"), {"s": new_saldo, "u": username})
+                            db.commit()
+                            print(f"💰 [{username}] Saldo terpotong Rp 200 (Sisa: Rp {new_saldo}) untuk proses akun: {akun_target}")
                     
-                    if berhasil_catat:
-                        with SessionLocal() as db:
-                            usr_row = db.execute(text("SELECT saldo FROM users WHERE username = :u"), {"u": username}).fetchone()
-                            if usr_row:
-                                new_saldo = max(0.0, usr_row.saldo - 200.0)
-                                db.execute(text("UPDATE users SET saldo = :s WHERE username = :u"), {"s": new_saldo, "u": username})
-                                db.commit()
-                                print(f"💰 [{username}] Saldo terpotong Rp 200 (Sisa: Rp {new_saldo})")
+                    # --- 2. FILTER REKAP EXCEL (HANYA UNTUK 3000 KOIN) ---
+                    # Mengecek apakah teks balasan bot mengandung angka "3000" atau "3.000"
+                    if "3000" in teks_gabungan or "3.000" in teks_gabungan:
+                        # Mencatat klaim sukses ke file Excel milik user ini sendiri
+                        berhasil_catat = catat_sukses_claim_ke_excel(
+                            username, 
+                            akun_target if akun_target != "Unknown" else "Akun_Processed", 
+                            cookie_user
+                        )
+                        if berhasil_catat:
+                            print(f"📝 [{username}] Akun {akun_target} SUKSES 3000 koin! Dicatat ke Excel.")
+                    else:
+                        print(f"⏩ [{username}] Akun {akun_target} dilewati dari Excel (Tidak mendapat 3000 koin).")
                         
                 except Exception as parse_err:
                     print(f"⚠️ Error parsing [{username}]: {parse_err}")
-                
-                await jalankan_siklus_misi(username, bot_target)
-
 # ==========================================
 # 3. ENDPOINTS API REST
 # ==========================================
