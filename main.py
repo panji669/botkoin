@@ -462,7 +462,9 @@ async def get_logs():
     return {"logs": log_stream.get_logs()}
 
 @app.get("/api/get_config")
-async def get_config(username: str):
+async def get_config(username: str = None):
+    if not username:
+        return {}
     with SessionLocal() as db:
         res = db.execute(text("SELECT * FROM settings WHERE username = :u"), {"u": username}).fetchone()
         if not res:
@@ -478,12 +480,15 @@ async def get_config(username: str):
         }
 
 @app.get("/api/download_excel")
-async def download_excel(username: str):
+async def download_excel(username: str = None):
+    if not username:
+        return {"status": "error", "message": "Username tidak boleh kosong."}
     inisialisasi_excel_jika_belum_ada(username)
     filename = get_user_excel_filename(username)
     if os.path.exists(filename):
         return FileResponse(filename, filename=f'laporan_klaim_{username}.xlsx')
     return {"status": "error", "message": "File belum tersedia."}
+
 
 @app.post("/api/simpan_pengaturan")
 async def simpan_pengaturan(settings: EngineSettings):
